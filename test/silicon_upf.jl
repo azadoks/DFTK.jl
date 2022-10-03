@@ -21,7 +21,7 @@ function run_silicon_pbe(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     ref_etot = -7.854477356672080
 
     fft_size = fill(grid_size, 3)
-    Si = ElementPsp(silicon.atnum, psp=load_psp("upf/pbe/Si.nc.z_4.oncvpsp3.dojo.v4-std.upf"))
+    Si = ElementPsp(silicon.atnum, psp=load_psp("upf/pbe/si-q4.upf"))
     atoms = [Si, Si]
 
     if spin_polarization == :collinear

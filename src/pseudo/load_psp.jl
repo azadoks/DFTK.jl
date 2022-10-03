@@ -30,7 +30,7 @@ function load_psp(key::AbstractString)
         end
     else
         # Not a file: Treat as identifier, add extension if needed
-        fullpath = joinpath(datadir_psp(), key)
+        fullpath = joinpath(datadir_psp(), lowercase(key))
         isfile(fullpath) || (fullpath = fullpath * extension)
         identifier = replace(lowercase(key), "\\" => "/")
     end
