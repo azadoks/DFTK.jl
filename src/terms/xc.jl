@@ -472,10 +472,6 @@ function core_density_superposition(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
     ρ = zeros(complex(T), basis.fft_size)
     for (iG, G) in enumerate(G_vectors(basis))
-        if isnothing(index_G_vectors(basis, -G))
-            ρ[iG] = zero(complex(T))
-            continue
-        end
         Gsq = sum(abs2, model.recip_lattice * G)
         for group in model.atom_groups
             element = model.atoms[first(group)]
@@ -484,7 +480,7 @@ function core_density_superposition(basis::PlaneWaveBasis{T}) where {T}
             ρ[iG] += form_factor * structure_factor
         end
     end
+    enforce_real!(basis, ρ)
     ρtot = irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
-    ρspin = basis.model.n_spin_components == 1 ? nothing : ρtot
-    ρ_from_total_and_spin(ρtot, ρspin)
+    ρ_from_total_and_spin(ρtot, nothing)
 end

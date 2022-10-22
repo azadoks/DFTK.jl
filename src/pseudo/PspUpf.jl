@@ -217,6 +217,12 @@ function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     4T(π) * n_electrons * dot(psp.rgrid, psp.r_vloc_corr_dr)
 end
 
+"""
+    eval_psp_rho_valence_fourier(psp::PspUpf, q<:Real)
+
+For UPFs, the integral is transformed into the following sum:
+Σ{i} j_0(q r[i]) r^2 4π ρval[i] dr[i]
+"""
 function eval_psp_rho_valence_fourier(psp::PspUpf, q::T) where {T <: Real}
     s = zero(T)
     @inbounds for ir = eachindex(psp.r2_4π_ρion_dr)
@@ -225,6 +231,12 @@ function eval_psp_rho_valence_fourier(psp::PspUpf, q::T) where {T <: Real}
     s
 end
 
+"""
+    eval_psp_rho_core_fourier(psp::PspUpf, q<:Real)
+
+For UPFs, the integral is transformed into the following sum:
+4π Σ{i} j_0(q r[i]) r^2 ρcore[i] dr[i]
+"""
 function eval_psp_rho_core_fourier(psp::PspUpf, q::T) where {T <: Real}
     s = zero(T)
     @inbounds for ir = eachindex(psp.r2_ρcore_dr)
