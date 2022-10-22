@@ -125,6 +125,29 @@ function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
     irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
 end
 
+"""
+Build a superposition of functions on a radial grid as a guess for the density and
+magnetisation. Expects all the pseudopotentials of the atoms of the basis to contain
+atomic valence charge densities.
+"""
+function numeric_superposition(basis::PlaneWaveBasis{T}) where {T}
+    model = basis.model
+    ρ = zeros(complex(T), basis.fft_size)
+    for (iG, G) in enumerate(G_vectors(basis))
+        if isnothing(index_G_vectors(basis, -G))
+            ρ[iG] = zero(complex(T))
+            continue
+        end
+        Gsq = sum(abs2, model.recip_lattice * G)
+        for group in model.atom_groups
+            element = model.atoms[first(group)]
+            form_factor = valence_charge_density_fourier(element, Gsq)
+            structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
+            ρ[iG] += form_factor * structure_factor
+        end
+    end
+    irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
+end
 
 @doc raw"""
 Get the lengthscale of the valence density for an atom with `n_elec_core` core

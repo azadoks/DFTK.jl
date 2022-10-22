@@ -100,6 +100,13 @@ function local_potential_real(el::ElementPsp, r::Real)
     return eval_psp_local_real(el.psp, r)
 end
 
+function valence_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}
+    eval_psp_rho_valence_fourier(el.psp, q)
+end
+
+function core_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}
+    eval_psp_rho_core_fourier(el.psp, q)
+end
 
 struct ElementCohenBergstresser <: Element
     Z::Int  # Nuclear charge

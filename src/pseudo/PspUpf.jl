@@ -20,9 +20,13 @@ struct PspUpf{T,I} <: NormConservingPsp
     # (UNUSED) Occupations of the pseudo-atomic wavefunctions.
     # UPF: `PP_PSWFC/PP_CHI.i['occupation']`
     pswfc_occs::Vector{Vector{T}}
-    # (UNUSED) Pseudo-atomic (valence) charge density on the radial grid.
-    # Can be used for charge density initialization. UPF: `PP_RHOATOM`
-    rhoatom::Vector{T}
+    # (UNUSED) Pseudo-atomic (valence) charge density on the radial grid multiplied by
+    # 4πr^2. Can be used for charge density initialization. UPF: `PP_RHOATOM`
+    r2_4π_ρion::Vector{T}
+    # Atomic core charge density on the radial grid, used for non-linear core correction.
+    # Unlike the pseudo-atomic valence charge density, this is a true charge density with
+    # no prefactor. UPF: `PP_NLCC`
+    ρcore::Vector{T}
 
     ## Precomputed for performance
     # (USED IN TESTS) Local potential interpolator, stored for performance.
@@ -33,6 +37,10 @@ struct PspUpf{T,I} <: NormConservingPsp
     r_vloc_corr_dr::Vector{T}
     # r_j^2 β_{il}(r_j) dr_j
     r2_projs_dr::Vector{Vector{Vector{T}}}
+    # 4π r_i^2 ρion_i dr_i
+    r2_4π_ρion_dr::Vector{T}
+    # r_i^2 ρcore_i dr_i
+    r2_ρcore_dr::Vector{T}
 
     ## Extras
     identifier::String   # String identifying the pseudopotential.
@@ -57,7 +65,6 @@ function PspUpf(path; identifier=path)
     pseudo = load_upf(path)
 
     unsupported = []
-    pseudo["header"]["core_correction"]      && push!(unsupported, "non-lin. core correction")
     pseudo["header"]["has_so"]               && push!(unsupported, "spin-orbit coupling")
     pseudo["header"]["pseudo_type"] == "SL"  && push!(unsupported, "semilocal potential")
     pseudo["header"]["pseudo_type"] == "US"  && push!(unsupported, "ultrasoft")
@@ -108,15 +115,21 @@ function PspUpf(path; identifier=path)
         end
         map(pswfc -> pswfc["occupation"], pswfcs_l)
     end
+    
+    r2_4π_ρion = pseudo["total_charge_density"]
 
-    rhoatom = pseudo["total_charge_density"]
+    if pseudo["header"]["core_correction"]
+        ρcore = pseudo["core_charge_density"]
+    else
+        ρcore = zeros(Float64, length(rgrid))
+    end
 
-    return PspUpf(Zion, lmax, rgrid, drgrid, vloc, r_projs, h, pswfcs, pswfc_occs, rhoatom;
-                  identifier, description)
+    return PspUpf(Zion, lmax, rgrid, drgrid, vloc, r_projs, h, pswfcs, pswfc_occs,
+                  r2_4π_ρion, ρcore; identifier, description)
 end
 
 function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, r_projs, h, pswfcs, pswfc_occs,
-                rhoatom; identifier="", description="") where {T <: Real}
+                r2_4π_ρion, ρcore; identifier="", description="") where {T <: Real}
 
     vloc_interp = linear_interpolation((rgrid, ), vloc)
     r_projs_interp = map(r_projs) do r_projs_l
@@ -134,9 +147,13 @@ function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, r_projs, h, pswfcs, 
         end
     end
 
+    r2_4π_ρion_dr = r2_4π_ρion .* drgrid
+    r2_ρcore_dr = rgrid.^2 .* ρcore .* drgrid
+
     PspUpf{T,typeof(vloc_interp)}(Zion, lmax, rgrid, drgrid, vloc, r_projs, h, pswfcs,
-                                  pswfc_occs, rhoatom, vloc_interp, r_projs_interp,
-                                  r_vloc_corr_dr, r2_projs_dr, identifier, description)
+                                  pswfc_occs, r2_4π_ρion, ρcore, vloc_interp, r_projs_interp,
+                                  r_vloc_corr_dr, r2_projs_dr, r2_4π_ρion_dr, r2_ρcore_dr,
+                                  identifier, description)
 end
 
 charge_ionic(psp::PspUpf) = psp.Zion
@@ -198,4 +215,20 @@ For UPFs, the integral is transformed to the following sum:
 """
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     4T(π) * n_electrons * dot(psp.rgrid, psp.r_vloc_corr_dr)
+end
+
+function eval_psp_rho_valence_fourier(psp::PspUpf, q::T) where {T <: Real}
+    s = zero(T)
+    @inbounds for ir = eachindex(psp.r2_4π_ρion_dr)
+        s += sphericalbesselj_fast(0, q * psp.rgrid[ir]) * psp.r2_4π_ρion_dr[ir]
+    end
+    s
+end
+
+function eval_psp_rho_core_fourier(psp::PspUpf, q::T) where {T <: Real}
+    s = zero(T)
+    @inbounds for ir = eachindex(psp.r2_ρcore_dr)
+        s += sphericalbesselj_fast(0, q * psp.rgrid[ir]) * psp.r2_ρcore_dr[ir]
+    end
+    4T(π) * s
 end

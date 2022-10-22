@@ -25,8 +25,10 @@ function Base.show(io::IO, xc::Xc)
     print(io, "Xc($fun$fac)")
 end
 
-function (xc::Xc)(::PlaneWaveBasis{T}) where {T}
+function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
+    # Charge density for non-linear core correction
+    ρ_nlcc = core_density_superposition(basis)
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
         newparams = convert_dual.(T, parameters(fun))
@@ -34,13 +36,15 @@ function (xc::Xc)(::PlaneWaveBasis{T}) where {T}
     end
     TermXc(convert(Vector{Functional}, functionals),
            convert_dual(T, xc.scaling_factor),
-           T(xc.potential_threshold))
+           T(xc.potential_threshold),
+           ρ_nlcc)
 end
 
 struct TermXc{T} <: TermNonlinear where {T}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
+    ρ_nlcc::Array{T,3}
 end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
@@ -52,6 +56,9 @@ end
     potential_threshold = term.potential_threshold
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
 
+    # Add the non-linear core correction density
+    ρ .+= term.ρ_nlcc
+    
     # Compute kinetic energy density, if needed.
     if isnothing(τ) && any(needs_τ, term.functionals)
         if isnothing(ψ) || isnothing(occupation)
@@ -455,4 +462,27 @@ function divergence_real(operand, basis)
     end
     # TODO: forcing real-valued ifft; should be enforced at creation of array
     irfft(basis, gradsum; check=Val(false))
+end
+
+"""
+Compute the core charge density for non-linear core correction as a superposition
+of atomic core charge densities.
+"""
+function core_density_superposition(basis::PlaneWaveBasis{T}) where {T}
+    model = basis.model
+    ρ = zeros(complex(T), basis.fft_size)
+    for (iG, G) in enumerate(G_vectors(basis))
+        if isnothing(index_G_vectors(basis, -G))
+            ρ[iG] = zero(complex(T))
+            continue
+        end
+        Gsq = sum(abs2, model.recip_lattice * G)
+        for group in model.atom_groups
+            element = model.atoms[first(group)]
+            form_factor = core_charge_density_fourier(element, Gsq)
+            structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
+            ρ[iG] += form_factor * structure_factor
+        end
+    end
+    irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
 end

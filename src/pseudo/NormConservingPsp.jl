@@ -97,6 +97,27 @@ function eval_psp_energy_correction end
 eval_psp_energy_correction(psp::NormConservingPsp, n_electrons) =
     eval_psp_energy_correction(Float64, psp, n_electrons)
 
+"""
+    eval_psp_rho_valence_fourier(psp, q)
+
+Evaluate the atomic valence charge density in reciprocal space:
+ρval(q) = ∫_{R^3} ρval(r) e^{-iqr} dr
+        = 4π ∫_{R+} ρval(r) sin(qr)/qr r^2 dr
+"""
+eval_psp_rho_valence_fourier(psp::NormConservingPsp, q::AbstractVector) = 
+    eval_psp_rho_valence_fourier(psp, norm(q))
+
+"""
+    eval_psp_rho_core_fourier(psp, q)
+
+Evaluate the atomic core charge density in reciprocal space:
+ρval(q) = ∫_{R^3} ρcore(r) e^{-iqr} dr
+        = 4π ∫_{R+} ρcore(r) sin(qr)/qr r^2 dr
+"""
+eval_psp_rho_core_fourier(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
+eval_psp_rho_core_fourier(psp::NormConservingPsp, q::AbstractVector) = 
+    eval_psp_rho_core_fourier(psp, norm(q))
+
 
 #### Methods defined on a NormConservingPsp
 import Base.Broadcast.broadcastable
