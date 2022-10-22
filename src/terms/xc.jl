@@ -44,7 +44,7 @@ struct TermXc{T} <: TermNonlinear where {T}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
-    ρ_nlcc::Array{T,3}
+    ρ_nlcc::Array{T,4}
 end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
@@ -484,5 +484,7 @@ function core_density_superposition(basis::PlaneWaveBasis{T}) where {T}
             ρ[iG] += form_factor * structure_factor
         end
     end
-    irfft(basis, ρ / sqrt(basis.model.unit_cell_volume)) ./ basis.model.n_spin_components
+    ρtot = irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
+    ρspin = basis.model.n_spin_components == 1 ? nothing : ρtot
+    ρ_from_total_and_spin(ρtot, ρspin)
 end
