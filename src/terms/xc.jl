@@ -57,7 +57,7 @@ end
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
 
     # Add the non-linear core correction density
-    ρ .+= term.ρ_nlcc
+    ρ = copy(ρ) .+ term.ρ_nlcc
     
     # Compute kinetic energy density, if needed.
     if isnothing(τ) && any(needs_τ, term.functionals)
@@ -484,5 +484,5 @@ function core_density_superposition(basis::PlaneWaveBasis{T}) where {T}
             ρ[iG] += form_factor * structure_factor
         end
     end
-    irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
+    irfft(basis, ρ / sqrt(basis.model.unit_cell_volume)) ./ basis.model.n_spin_components
 end
