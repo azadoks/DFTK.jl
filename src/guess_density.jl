@@ -136,10 +136,10 @@ function numeric_superposition(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
     ρ = zeros(complex(T), basis.fft_size)
     for (iG, G) in enumerate(G_vectors(basis))
-        Gsq = sum(abs2, model.recip_lattice * G)
+        q = norm(model.recip_lattice * G)
         for group in model.atom_groups
             element = model.atoms[first(group)]
-            form_factor = valence_charge_density_fourier(element, Gsq)
+            form_factor = valence_charge_density_fourier(element, q)
             structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
             ρ[iG] += form_factor * structure_factor
         end
