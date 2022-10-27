@@ -156,7 +156,7 @@ end
     for (element, psp) in upf_pseudos
         atoms = [ElementPsp(element, psp=psp)]
         model = model_LDA(lattice, atoms, positions)
-        basis = PlaneWaveBasis(model; Ecut=30, kgrid=[2, 2, 2])
+        basis = PlaneWaveBasis(model; Ecut=18, kgrid=[2, 2, 2])
         ρ_val = numeric_superposition(basis)
         ρ_val_neg = abs(sum(ρ_val[ρ_val .< 0]))
         @test ρ_val_neg * model.unit_cell_volume / prod(basis.fft_size) < 1e-6
@@ -170,7 +170,7 @@ end
         if sum(psp.r2_4π_ρion) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
             atoms = [ElementPsp(element, psp=psp)]
             model = model_LDA(lattice, atoms, positions)
-            basis = PlaneWaveBasis(model; Ecut=30, kgrid=[2, 2, 2])
+            basis = PlaneWaveBasis(model; Ecut=18, kgrid=[2, 2, 2])
             ρ_val = numeric_superposition(basis)
             Z_valence = sum(ρ_val) * model.unit_cell_volume / prod(basis.fft_size)
             @test Z_valence ≈ charge_ionic(psp) rtol=1e-5 atol=1e-5
