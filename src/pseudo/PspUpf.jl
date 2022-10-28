@@ -157,6 +157,7 @@ function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, r_projs, h, pswfcs, 
 end
 
 charge_ionic(psp::PspUpf) = psp.Zion
+has_rho_valence(psp::PspUpf) = !all(iszero, psp.r2_4π_ρion)
 
 """
     eval_psp_projector_real(psp::PspUpf, i::Number, l::Number, r<:Real)

@@ -50,7 +50,7 @@ model = model_PBE(lattice, atoms, positions; temperature=0.02, smearing=Smearing
                   magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
 
-scfres = self_consistent_field(basis, tol=1e-2, ρ=guess_density(basis, magnetic_moments))
+scfres = self_consistent_field(basis, tol=1e-2, ρ=guess_density(basis; magnetic_moments))
 save_scfres("scfres.jld2", scfres);
 #-
 scfres.energies

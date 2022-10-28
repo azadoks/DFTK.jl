@@ -37,6 +37,30 @@ function local_potential_real(el::Element, q::AbstractVector)
     local_potential_real(el, norm(q))
 end
 
+"""Valence charge density, in Fourier space: ρval(q) = int_{R^3} ρval(x) e^{-iqx} dx."""
+function valence_charge_density_fourier(el::Element, q::AbstractVector)
+    valence_charge_density_fourier(el, norm(q))
+end
+
+"""Fallback to Gaussian valence charge density."""
+function valence_charge_density_fourier(el::Element, q::T)::T where {T <: Real}
+    gaussian_valence_charge_density_fourier(el, q)
+end
+
+"""Gaussian valence charge density using Abinit's coefficient table, in Fourier space."""
+function gaussian_valence_charge_density_fourier(el::Element, q::T)::T where {T <: Real}
+    charge_ionic(el) * exp(-(q * atom_decay_length(el))^2)
+end
+
+"""Core charge density, in Fourier space: ρcore(q) = int_{R^3} ρcore(x) e^{-iqx} dx."""
+function core_charge_density_fourier(el::Element, q::AbstractVector)
+    core_charge_density_fourier(el, norm(q))
+end
+
+function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
+    zero(T)
+end
+
 # Fallback print function:
 Base.show(io::IO, el::Element) = print(io, "$(typeof(el))($(atomic_symbol(el)))")
 
@@ -101,7 +125,11 @@ function local_potential_real(el::ElementPsp, r::Real)
 end
 
 function valence_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}
-    eval_psp_rho_valence_fourier(el.psp, q)
+    if has_rho_valence(el.psp)
+        eval_psp_rho_valence_fourier(el.psp, q)
+    else
+        gaussian_valence_charge_density_fourier(el, q)
+    end
 end
 
 function core_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}

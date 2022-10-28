@@ -12,10 +12,13 @@ abstract type NormConservingPsp end
 
 #### Methods:
 # charge_ionic(psp::NormConservingPsp)
+# has_rho_valence(psp:NormConservingPsp)
 # eval_psp_projector_real(psp::NormConservingPsp, i, l, r::Real)
 # eval_psp_projector_fourier(psp::NormConservingPsp, i, l, q::Real)
 # eval_psp_local_real(psp::NormConservingPsp, r::Real)
 # eval_psp_local_fourier(psp::NormConservingPsp, q::Real)
+# eval_psp_rho_valence_fourier(psp::NormConservingPsp, q::Real)
+# eval_psp_rho_core_fourier(psp::NormConservingPsp, q::Real)
 # eval_psp_energy_correction(T::Type, psp::NormConservingPsp, n_electrons::Integer)
 
 """

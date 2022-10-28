@@ -2,12 +2,15 @@ using Test
 using Downloads
 using DFTK: eval_psp_projector_fourier, eval_psp_local_fourier
 using DFTK: eval_psp_projector_real, eval_psp_local_real, eval_psp_energy_correction
-using DFTK: count_n_proj_radial, numeric_superposition
+using DFTK: count_n_proj_radial
 using SpecialFunctions: sphericalbesselj
 using QuadGK
 
-commit   = "56d1774708e1adfff35d30a403004cb98de4224b"
-base_url = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary/$commit/pseudos/"
+if mpi_nprocs() == 1
+    # Downloads.download causes a race condition with multiple MPI processes
+    # TODO enable this test if we move to artefacts
+
+base_url = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary/main/pseudos/"
 
 upf_urls = Dict(
     # Converged from HGH
@@ -28,10 +31,6 @@ hgh_pseudos = [
     (hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
     (hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
 ]
-
-if mpi_nprocs() == 1
-# Downloads.download causes a race condition with multiple MPI processes
-# TODO enable this test if we move to artefacts
 
 @testset "Check reading PseudoDojo Li UPF" begin
     psp = upf_pseudos[:Li]
@@ -157,7 +156,7 @@ end
         atoms = [ElementPsp(element, psp=psp)]
         model = model_LDA(lattice, atoms, positions)
         basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
-        ρ_val = numeric_superposition(basis)
+        ρ_val = guess_density(basis; method=:psp)
         ρ_val_neg = abs(sum(ρ_val[ρ_val .< 0]))
         @test ρ_val_neg * model.unit_cell_volume / prod(basis.fft_size) < 1e-6
     end
@@ -171,7 +170,7 @@ end
             atoms = [ElementPsp(element, psp=psp)]
             model = model_LDA(lattice, atoms, positions)
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
-            ρ_val = numeric_superposition(basis)
+            ρ_val = guess_density(basis; method=:psp)
             Z_valence = sum(ρ_val) * model.unit_cell_volume / prod(basis.fft_size)
             @test Z_valence ≈ charge_ionic(psp) rtol=1e-5 atol=1e-5
         end

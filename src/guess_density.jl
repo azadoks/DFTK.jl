@@ -1,6 +1,9 @@
-
 """
+    random_density(basis; n_electrons=basis.model.n_electrons)
+
 Generate a physically valid random density integrating to the given number of electrons.
+If the basis is has more than one spin component, the spin density is randomly generated
+without symmetry.
 """
 function random_density(basis::PlaneWaveBasis; n_electrons=basis.model.n_electrons)
     T = eltype(basis)
@@ -14,46 +17,45 @@ function random_density(basis::PlaneWaveBasis; n_electrons=basis.model.n_electro
     ρ_from_total_and_spin(ρtot, ρspin)
 end
 
-
 @doc raw"""
-    guess_density(basis, magnetic_moments=[])
-    guess_density(basis, system)
+    guess_density(basis; magnetic_moments=[], method=:smart)
 
 Build a superposition of atomic densities (SAD) guess density.
 
-We take for the guess density a Gaussian centered around the atom, of
-length specified by `atom_decay_length`, normalized to get the right number of electrons
+The guess atomic densities are taken as one of the following depending on the input
+`method`:
+
+-`:smart`: A combination of the `:gaussian` and `:psp` methods where elements whose
+pseudopotentials provide numeric valence charge density data use them and elements without
+use Gaussians.
+-`:gaussian`: Gaussians of length specified by `atom_decay_length` normalized for the
+correct number of electrons:
 ```math
 \hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
 ```
+- `:psp`: Numerical pseudo-atomic valence charge densities from the pseudopotentials. Will
+fail if one or more elements in the system has a pseudopotential that does not have 
+valence charge density data.
+
 When magnetic moments are provided, construct a symmetry-broken density guess.
 The magnetic moments should be specified in units of ``μ_B``.
 """
-function guess_density(basis::PlaneWaveBasis, magnetic_moments=[])
-    guess_density(basis, basis.model.atoms, basis.model.positions, magnetic_moments)
+function guess_density(basis::PlaneWaveBasis; magnetic_moments=[], method=:smart)
+    guess_density(basis, basis.model.atoms, magnetic_moments, method)
 end
-function guess_density(basis::PlaneWaveBasis, system::AbstractSystem)
-    parsed = parse_system(system)
-    guess_density(basis, parsed.atoms, parsed.positions, parsed.magnetic_moments)
-end
-@timing function guess_density(basis::PlaneWaveBasis, atoms, positions, magnetic_moments)
-    ρtot = _guess_total_density(basis, atoms, positions)
-    if basis.model.n_spin_components == 1
-        ρspin = nothing
-    else
-        ρspin = _guess_spin_density(basis, atoms, positions, magnetic_moments)
-    end
+
+@timing function guess_density(basis::PlaneWaveBasis, atoms, magnetic_moments, method)
+    ρtot = _guess_total_density(basis, method)
+    ρspin = _guess_spin_density(basis, atoms, magnetic_moments, method)
     ρ_from_total_and_spin(ρtot, ρspin)
 end
 
-function _guess_total_density(basis::PlaneWaveBasis{T}, atoms, positions) where {T}
-    @assert length(atoms) == length(positions)
-    gaussians_tot = [(T(n_elec_valence(atom))::T, T(atom_decay_length(atom))::T, position)
-                     for (atom, position) in zip(atoms, positions)]
-    ρtot = gaussian_superposition(basis, gaussians_tot)
+function _guess_total_density(basis::PlaneWaveBasis{T}, method) where {T}
+    _atomic_density_superposition(basis; method=method)
 end
 
-function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, positions, magnetic_moments) where {T}
+function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments,
+                             method) where {T}
     model = basis.model
     if model.spin_polarization in (:none, :spinless)
         isempty(magnetic_moments) && return nothing
@@ -69,83 +71,97 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, positions, magneti
         return zeros_like(basis.G_vectors, T, basis.fft_size...)
     end
 
-    @assert length(magmoms) == length(atoms) == length(positions)
-    gaussians = map(zip(atoms, positions, magmoms)) do (atom, position, magmom)
+    @assert length(magmoms) == length(atoms)
+    coefficients = map(zip(atoms, magmoms)) do (atom, magmom)
         iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
         magmom[3] ≤ n_elec_valence(atom) || error(
             "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(atom)) " *
             "with only $(n_elec_valence(atom)) valence electrons."
         )
-        magmom[3], T(atom_decay_length(atom))::T, position
+        magmom[3] / n_elec_valence(atom)
     end
-    gaussians = filter(g -> !iszero(g[1]), gaussians)
-    gaussian_superposition(basis, gaussians)
-end
-
-
-@doc raw"""
-Build a superposition of Gaussians as a guess for the density and magnetisation.
-Expects a list of tuples `(coefficient, length, position)` for each of the Gaussian,
-which follow the functional form
-```math
-\hat{ρ}(G) = \text{coefficient} \exp\left(-(2π \text{length} |G|)^2\right)
-```
-and are placed at `position` (in fractional coordinates).
-"""
-function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
-    recip_lattice = basis.model.recip_lattice
-    fft_size      = basis.fft_size
-    ρ = zeros_like(G_vectors(basis), complex(T), fft_size...)
-
-    isempty(gaussians) && return irfft(basis, ρ)
-
-    # This copy is required so that `gaussians` is isbits and can be transferred to the GPU
-    # TODO See if there is a better option here ... this feels non-ideal for larger systems
-    gaussians = SVector{size(gaussians)[1]}(gaussians)
-
-    # Fill ρ with the (unnormalized) Fourier transform, i.e. ∫ e^{-iGx} f(x) dx,
-    # where f(x) is a weighted gaussian
-    #
-    # is formed from a superposition of atomic densities, each scaled by a prefactor
-    # Ensure that we only set G-vectors that have a -G counterpart to ensure ρ is real.
-    function build_ρ(G)
-        if isnothing(index_G_vectors(fft_size, -G))
-            return zero(complex(T))
-        end
-        Gsq = norm2(recip_lattice * G)
-        res = zero(complex(T))
-        for (coeff, decay_length, r) in gaussians
-            form_factor::T = exp(-Gsq * T(decay_length)^2)
-            res += T(coeff) * form_factor * cis2pi(-dot(G, r))
-        end
-        res
-    end
-    ρ = map(build_ρ, basis.G_vectors)
-
-    irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
+    _atomic_density_superposition(basis; coefficients, method)
 end
 
 """
-    numeric_superposition(basis::PlaneWaveBasis)
-
-Build a superposition of functions on a radial grid as a guess for the density and
-magnetisation. Expects all the pseudopotentials of the atoms of the basis to contain
-atomic valence charge densities.
+Build the a charge density for an atomic system as a superposition of atomic valence
+charge densities.
 """
-function numeric_superposition(basis::PlaneWaveBasis{T}) where {T}
+function _atomic_density_superposition(basis::PlaneWaveBasis{T};
+    coefficients=ones(T, length(basis.model.atoms)), method=:smart) where {T}
     model = basis.model
-    ρ = zeros(complex(T), basis.fft_size)
-    for (iG, G) in enumerate(G_vectors(basis))
-        Gnorm = norm(model.recip_lattice * G)
-        for group in model.atom_groups
-            element = model.atoms[first(group)]
-            form_factor = valence_charge_density_fourier(element, Gnorm)
-            structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
-            ρ[iG] += form_factor * structure_factor
+    G_cart = G_vectors_cart(basis)
+
+    if method == :smart
+        form_factors = _smart_form_factors(basis)
+    elseif method == :gaussian
+        form_factors = _gaussian_form_factors(basis)
+    elseif method == :psp
+        form_factors = _psp_form_factors(basis)
+    else
+        error("Unknown density superposition method '$(string(method))'.")
+    end
+
+    ρ = map(enumerate(G_vectors(basis))) do (iG, G)
+        Gnorm = norm(G_cart[iG])
+        ρ_iG = sum(enumerate(model.atom_groups)) do (igroup, group)
+            sum(group) do iatom
+                structure_factor = cis2pi(-dot(G, model.positions[iatom]))
+                coefficients[iatom] * form_factors[(igroup, Gnorm)] * structure_factor
+            end
+        end
+        ρ_iG / sqrt(model.unit_cell_volume)
+    end
+    enforce_real!(basis, ρ)  # Symmetrize Fourier coeffs to have real iFFT
+    irfft(basis, ρ)
+end
+
+function _gaussian_form_factors(basis::PlaneWaveBasis{T})::IdDict{Tuple{Int,T},T} where {T}
+    model = basis.model
+    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
+    for G in G_vectors_cart(basis)
+        Gnorm = norm(G)
+        for (igroup, group) in enumerate(model.atom_groups)
+            if !haskey(form_factors, (igroup, Gnorm))
+                element = model.atoms[first(group)]
+                form_factor = gaussian_valence_charge_density_fourier(element, Gnorm)
+                form_factors[(igroup, Gnorm)] = form_factor
+            end
         end
     end
-    enforce_real!(basis, ρ)
-    irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
+    form_factors
+end
+
+function _psp_form_factors(basis::PlaneWaveBasis{T})::IdDict{Tuple{Int,T},T} where {T}
+    model = basis.model
+    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
+    for G in G_vectors_cart(basis)
+        Gnorm = norm(G)
+        for (igroup, group) in enumerate(model.atom_groups)
+            if !haskey(form_factors, (igroup, Gnorm))
+                element = model.atoms[first(group)]
+                form_factor = eval_psp_rho_valence_fourier(element.psp, Gnorm)
+                form_factors[(igroup, Gnorm)] = form_factor
+            end
+        end
+    end
+    form_factors
+end
+
+function _smart_form_factors(basis::PlaneWaveBasis{T})::IdDict{Tuple{Int,T},T} where {T}
+    model = basis.model
+    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
+    for G in G_vectors_cart(basis)
+        Gnorm = norm(G)
+        for (igroup, group) in enumerate(model.atom_groups)
+            if !haskey(form_factors, (igroup, Gnorm))
+                element = model.atoms[first(group)]
+                form_factor = valence_charge_density_fourier(element, Gnorm)
+                form_factors[(igroup, Gnorm)] = form_factor
+            end
+        end
+    end
+    form_factors
 end
 
 @doc raw"""
