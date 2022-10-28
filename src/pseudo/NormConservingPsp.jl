@@ -17,9 +17,13 @@ abstract type NormConservingPsp end
 # eval_psp_projector_fourier(psp::NormConservingPsp, i, l, q::Real)
 # eval_psp_local_real(psp::NormConservingPsp, r::Real)
 # eval_psp_local_fourier(psp::NormConservingPsp, q::Real)
-# eval_psp_rho_valence_fourier(psp::NormConservingPsp, q::Real)
-# eval_psp_rho_core_fourier(psp::NormConservingPsp, q::Real)
 # eval_psp_energy_correction(T::Type, psp::NormConservingPsp, n_electrons::Integer)
+
+#### Optional methods:
+# eval_psp_rho_valence_real(psp::NormConservingPsp, r::Real)
+# eval_psp_rho_valence_fourier(psp::NormConservingPsp, q::Real)
+# eval_psp_rho_core_real(psp::NormConservingPsp, r::Real)
+# eval_psp_rho_core_fourier(psp::NormConservingPsp, q::Real)
 
 """
     eval_psp_projector_real(psp, i, l, r)
@@ -101,6 +105,14 @@ eval_psp_energy_correction(psp::NormConservingPsp, n_electrons) =
     eval_psp_energy_correction(Float64, psp, n_electrons)
 
 """
+    eval_psp_rho_valence_real(psp, r)
+
+Evaluate the atomic valence charge density in real space.
+"""
+eval_psp_rho_valence_real(psp::NormConservingPsp, r::AbstractVector) = 
+    eval_psp_rho_valence_real(psp, norm(r))
+
+"""
     eval_psp_rho_valence_fourier(psp, q)
 
 Evaluate the atomic valence charge density in reciprocal space:
@@ -109,6 +121,15 @@ Evaluate the atomic valence charge density in reciprocal space:
 """
 eval_psp_rho_valence_fourier(psp::NormConservingPsp, q::AbstractVector) = 
     eval_psp_rho_valence_fourier(psp, norm(q))
+
+"""
+    eval_psp_rho_core_real(psp, r)
+
+Evaluate the atomic core charge density in real space.
+"""
+eval_psp_rho_core_real(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
+eval_psp_rho_core_real(psp::NormConservingPsp, r::AbstractVector) = 
+    eval_psp_rho_core_real(psp, norm(r))
 
 """
     eval_psp_rho_core_fourier(psp, q)

@@ -1,7 +1,10 @@
 using Test
 using Downloads
-using DFTK: eval_psp_projector_fourier, eval_psp_local_fourier
-using DFTK: eval_psp_projector_real, eval_psp_local_real, eval_psp_energy_correction
+using DFTK: eval_psp_projector_fourier, eval_psp_projector_real
+using DFTK: eval_psp_local_real, eval_psp_local_fourier
+using DFTK: eval_psp_rho_valence_real, eval_psp_rho_valence_fourier
+using DFTK: eval_psp_rho_core_real, eval_psp_rho_core_fourier
+using DFTK: eval_psp_energy_correction
 using DFTK: count_n_proj_radial
 using SpecialFunctions: sphericalbesselj
 using QuadGK
@@ -123,8 +126,8 @@ end
 @testset "Projectors are consistent in real and Fourier space" begin
     # The integrand for performing the spherical Hankel transfrom,
     # i.e. compute the radial part of the projector in Fourier space
-    function integrand(psp, i, l, q, x)
-        4π * x^2 * eval_psp_projector_real(psp, i, l, x) * sphericalbesselj(l, q*x)
+    function integrand(psp, i, l, q, r)
+        4π * r^2 * eval_psp_projector_real(psp, i, l, r) * sphericalbesselj(l, q * r)
     end
 
     for psp in values(upf_pseudos)
@@ -136,6 +139,34 @@ end
                                    psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
                 @test reference ≈ eval_psp_projector_fourier(psp, i, l, q) atol=1e-2 rtol=1e-2
             end
+        end
+    end
+end
+
+@testset "Valence charge densities are consistent in real and Fourier space" begin
+    function integrand(psp, q, r)
+        4π * r^2 * eval_psp_rho_valence_real(psp, r) * sphericalbesselj(0, q * r)
+    end
+    for psp in values(upf_pseudos)
+        ir_start = iszero(psp.rgrid[1]) ? 2 : 1
+        for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+            reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[ir_start],
+                               psp.rgrid[end])[1]
+            @test reference  ≈ eval_psp_rho_valence_fourier(psp, q) rtol=1e-2 rtol=1e-2
+        end
+    end
+end
+
+@testset "Core charge densities are consistent in real and Fourier space" begin
+    function integrand(psp, q, r)
+        4π * r^2 * eval_psp_rho_core_real(psp, r) * sphericalbesselj(0, q * r)
+    end
+    for psp in values(upf_pseudos)
+        ir_start = iszero(psp.rgrid[1]) ? 2 : 1
+        for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+            reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[ir_start],
+                               psp.rgrid[end])[1]
+            @test reference  ≈ eval_psp_rho_core_fourier(psp, q) rtol=1e-1 rtol=1e-1
         end
     end
 end

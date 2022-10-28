@@ -120,7 +120,6 @@ function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
 end
 
 function local_potential_real(el::ElementPsp, r::Real)
-    # Use local part of pseudopotential defined in Element object
     return eval_psp_local_real(el.psp, r)
 end
 
