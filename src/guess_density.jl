@@ -88,7 +88,7 @@ Build the a charge density for an atomic system as a superposition of atomic val
 charge densities.
 """
 function _atomic_density_superposition(basis::PlaneWaveBasis{T};
-    coefficients=ones(T, length(basis.model.atoms)), method=:smart) where {T}
+    coefficients=ones(T, length(basis.model.atoms)), method=:smart)::Array{T,3} where {T}
     model = basis.model
     G_cart = G_vectors_cart(basis)
 
@@ -107,7 +107,7 @@ function _atomic_density_superposition(basis::PlaneWaveBasis{T};
         ρ_iG = sum(enumerate(model.atom_groups); init=zero(Complex{T})) do (igroup, group)
             sum(group) do iatom
                 structure_factor = cis2pi(-dot(G, model.positions[iatom]))
-                coefficients[iatom] * form_factors[(igroup, Gnorm)] * structure_factor
+                coefficients[iatom]::T * form_factors[(igroup, Gnorm)]::T * structure_factor
             end
         end
         ρ_iG / sqrt(model.unit_cell_volume)
