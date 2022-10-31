@@ -26,10 +26,7 @@ upf_urls = Dict(
     :Co => joinpath(base_url, "pd_nc_sr_pbe_standard_04_upf/Co.upf"),
     :Ge => joinpath(base_url, "pd_nc_sr_pbe_standard_04_upf/Ge.upf"),
 )
-upf_pseudos = Dict(
-    key => load_psp(Downloads.download(value, joinpath(tempdir(), "$(string(key)).UPF")))
-    for (key, value) in upf_urls
-)
+upf_pseudos = Dict(symbol => load_psp(url) for (symbol, url) in upf_urls)
 hgh_pseudos = [
     (hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
     (hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])

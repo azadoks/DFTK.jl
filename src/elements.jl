@@ -27,8 +27,8 @@ n_elec_valence(el::Element) = charge_ionic(el)
 """Return the number of core electrons"""
 n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
-"""Check presence of non-linear core corrections."""
-has_nlcc(::Element) = false
+"""Check presence of model core charge density (non-linear core correction)."""
+has_rho_core(::Element) = false
 
 """Radial local potential, in Fourier space: V(q) = int_{R^3} V(x) e^{-iqx} dx."""
 function local_potential_fourier(el::Element, q::AbstractVector)
@@ -115,7 +115,7 @@ function ElementPsp(key; psp)
 end
 charge_ionic(el::ElementPsp) = charge_ionic(el.psp)
 charge_nuclear(el::ElementPsp) = el.Z
-has_nlcc(el::ElementPsp) = has_nlcc(el.psp)
+has_rho_core(el::ElementPsp) = has_rho_core(el.psp)
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}

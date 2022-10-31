@@ -1,8 +1,8 @@
+import Downloads
 import PeriodicTable
 
 """Return the data directory with pseudopotential files"""
 datadir_psp() = joinpath(get(ENV, "DFTK_DATADIR", DFTK_DATADIR), "psp")
-
 
 """
 Load a pseudopotential file from the library of pseudopotentials.
@@ -31,8 +31,7 @@ function load_psp(key::AbstractString)
     elseif startswith(lowercase(key), r"http://|https://")  # Key is a URL .. download it
         fullpath = Downloads.download(key, joinpath(tempdir(), "psp$(extension)"))
         identifier = key
-    else
-        # Not a file: Treat as identifier, add extension if needed
+    else  # Not a file or url: treat as identifier, add extension if needed
         fullpath = joinpath(datadir_psp(), lowercase(key))
         isfile(fullpath) || (fullpath = fullpath * extension)
         identifier = replace(lowercase(key), "\\" => "/")

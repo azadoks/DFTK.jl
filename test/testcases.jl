@@ -1,5 +1,7 @@
 using LinearAlgebra
 
+psp_base_url = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary/main/pseudos/"
+
 silicon = (
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
@@ -8,6 +10,7 @@ silicon = (
     n_electrons = 8,
     temperature = 0.0,
     psp = "hgh/lda/si-q4",
+    psp_upf = joinpath(psp_base_url, "pd_nc_sr_lda_standard_04_upf/Si.upf"),
     positions = [ones(3)/8, -ones(3)/8],  # in fractional coordinates
     kcoords = [[   0,   0, 0],  # in fractional coordinates
                [ 1/3,   0, 0],
@@ -25,6 +28,7 @@ magnesium = (
     atnum = 12,
     n_electrons = 4,
     psp = "hgh/lda/mg-q2",
+    psp_upf = joinpath(psp_base_url, "pd_nc_sr_lda_standard_04_upf/Mg.upf"),
     positions = [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]],
     kcoords =  [[0,   0,   0],
                 [1/3, 0,   0],
@@ -45,6 +49,7 @@ aluminium = (
     atnum = 13,
     n_electrons = 12,
     psp = "hgh/lda/al-q3",
+    psp_upf = joinpath(psp_base_url, "pd_nc_sr_lda_standard_04_upf/Al.upf"),
     positions = [[0, 0, 0], [0, 1/2, 1/2], [1/8, 0, 1/2], [1/8, 1/2, 0]],
     temperature = 0.0009500431544769484,
 )
@@ -59,6 +64,7 @@ aluminium_primitive = (
     atnum = 13,
     n_electrons = 3,
     psp = "hgh/lda/al-q3",
+    psp_upf = joinpath(psp_base_url, "pd_nc_sr_lda_standard_04_upf/Al.upf"),
     positions = [[0, 0, 0]],
     temperature = 0.0009500431544769484,
 )
@@ -71,6 +77,7 @@ platinum_hcp = (
     atnum = 78,
     n_electrons = 36,
     psp = "hgh/lda/pt-q18",
+    psp_upf = joinpath(psp_base_url, "pd_nc_sr_lda_standard_04_upf/Pt.upf"),
     positions = [zeros(3), ones(3) / 3],
     temperature = 0.0009500431544769484,
 )
@@ -82,6 +89,7 @@ iron_bcc = (
     atnum = 26,
     n_electrons = 8,
     psp = "hgh/lda/fe-q8",
+    psp_upf = joinpath(psp_base_url, "pd_nc_sr_lda_standard_04_upf/Fe.upf"),
     positions = [zeros(3)],
     temperature = 0.01,
 )
@@ -92,6 +100,7 @@ o2molecule = (
     atnum = 8,
     n_electrons = 12,
     psp = "hgh/lda/O-q6",
+    psp_upf = joinpath(psp_base_url, "pd_nc_sr_lda_standard_04_upf/O.upf"),
     positions = 0.1155 * [[0, 0, 1], [0, 0, -1]],
     temperature = 0.02,
 )
