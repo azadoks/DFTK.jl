@@ -106,7 +106,7 @@ function _atomic_density_superposition(basis::PlaneWaveBasis{T};
         Gnorm = norm(G_cart[iG])
         ρ_iG = sum(enumerate(model.atom_groups); init=zero(Complex{T})) do (igroup, group)
             sum(group) do iatom
-                structure_factor = cis2pi(-dot(G, model.positions[iatom]))
+                structure_factor::Complex{T} = cis2pi(-dot(G, model.positions[iatom]))
                 coefficients[iatom]::T * form_factors[(igroup, Gnorm)]::T * structure_factor
             end
         end

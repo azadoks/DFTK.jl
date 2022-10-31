@@ -28,6 +28,9 @@ function load_psp(key::AbstractString)
         if startswith(identifier, datadir_psp())
             identifier = identifier[length(datadir_psp())+1:end]
         end
+    elseif startswith(lowercase(key), r"http://|https://")  # Key is a URL .. download it
+        fullpath = Downloads.download(key, joinpath(tempdir(), "psp$(extension)"))
+        identifier = key
     else
         # Not a file: Treat as identifier, add extension if needed
         fullpath = joinpath(datadir_psp(), lowercase(key))

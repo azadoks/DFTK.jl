@@ -27,7 +27,10 @@ n_elec_valence(el::Element) = charge_ionic(el)
 """Return the number of core electrons"""
 n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
-"""Radial local potential, in Fourier space: ```V(q) = ∫_{ℝ^3} V(x) e^{-iq·x} dx``."""
+"""Check presence of non-linear core corrections."""
+has_nlcc(::Element) = false
+
+"""Radial local potential, in Fourier space: V(q) = int_{R^3} V(x) e^{-iqx} dx."""
 function local_potential_fourier(el::Element, q::AbstractVector)
     local_potential_fourier(el, norm(q))
 end
@@ -110,8 +113,9 @@ or an element name (e.g. `"silicon"`)
 function ElementPsp(key; psp)
     ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp)
 end
-charge_ionic(el::ElementPsp)   = charge_ionic(el.psp)
+charge_ionic(el::ElementPsp) = charge_ionic(el.psp)
 charge_nuclear(el::ElementPsp) = el.Z
+has_nlcc(el::ElementPsp) = has_nlcc(el.psp)
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}

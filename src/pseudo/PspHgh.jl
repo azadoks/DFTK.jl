@@ -14,6 +14,7 @@ struct PspHgh{T} <: NormConservingPsp
 end
 charge_ionic(psp::PspHgh) = psp.Zion
 has_rho_valence(psp::PspHgh) = false
+has_rho_core(psp::PspHgh) = false
 
 """
     PspHgh(path[, identifier, description])

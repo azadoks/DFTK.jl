@@ -163,6 +163,7 @@ end
 
 charge_ionic(psp::PspUpf) = psp.Zion
 has_rho_valence(psp::PspUpf) = !all(iszero, psp.r2_4π_ρion)
+has_rho_core(psp::PspUpf) = !all(iszero, psp.ρcore)
 
 """
     eval_psp_projector_real(psp::PspUpf, i::Number, l::Number, r<:Real)
