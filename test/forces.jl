@@ -76,8 +76,8 @@ end
     @test abs(diff_findiff - diff_forces) < 1e-7
 
     # Test against QE v7.1 using LibXC v5.3.2 lda_x+lda_c_pw (see testcases_QuantumESPRESSO/silicon_NLCC_forces)
-    reference = [[-5.866326802158158e-3, -4.644839108367286e-3, -3.404680735464968e-3],
-                 [ 5.866326802158158e-3,  4.644839108367286e-3,  3.404680735464968e-3]]
+    reference = [[-5.748420297520786e-3, -4.552169062639472e-3, -3.337867407317233e-3],
+                 [ 5.748420297520786e-3,  4.552169062639472e-3,  3.337867407317233e-3]]
     @test maximum(v -> maximum(abs, v), reference - Fc1) < 1e-5
 end
 
