@@ -4,25 +4,23 @@
     tstress = .true.
     tprnfor = .true.
     outdir = './'
-    prefix = 'silicon_NLCC'
+    prefix = 'silicon_NLCC_forces'
     disk_io = 'nowf'
     pseudo_dir = './'
 /
 
 &SYSTEM
-    ibrav = 2
-    celldm(1) = 10.26314133
+    ibrav = 0
     nat = 2
     ntyp = 1
     ecutwfc = 14.0
     occupations = 'fixed'
-    ! input_dft = 'sla+pw'
-    input_dft = 'xc-001l-007l'  ! lda_x + lda_c_vwn
+    input_dft = 'xc-001l-012l'  ! lda_x + lda_c_pw
 /
 
 &ELECTRONS
-    electron_maxstep = 80
-    conv_thr = 2.0d-12
+    electron_maxstep = 100
+    conv_thr = 2.0d-11
 /
 
 ATOMIC_SPECIES
@@ -34,3 +32,8 @@ ATOMIC_POSITIONS crystal
 
 K_POINTS automatic
     2 2 2 0 0 0
+
+CELL_PARAMETERS bohr
+     0.000000000000000  5.131570667152971  5.131570667152971
+     5.131570667152971  0.000000000000000  5.131570667152971
+     5.131570667152971  5.131570667152971  0.000000000000000
