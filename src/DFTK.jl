@@ -83,7 +83,9 @@ include("show.jl")
 include("supercell.jl")
 
 export Energies
+export Forces
 include("Energies.jl")
+include("Forces.jl")
 
 export Hamiltonian
 export HamiltonianBlock

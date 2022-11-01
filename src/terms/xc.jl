@@ -136,7 +136,81 @@ end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
                                               ψ, occupation; ρ, τ=nothing, kwargs...) where {T}
-    E, potential, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    @assert !isempty(term.functionals)
+
+    model    = basis.model
+    n_spin   = model.n_spin_components
+    @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
+
+    # Add the non-linear core correction density; will be zero if disabled in `Xc`
+    if !isnothing(term.ρcore)
+        ρ = copy(ρ) .+ term.ρcore
+    end
+
+    # Compute kinetic energy density, if needed.
+    if isnothing(τ) && any(needs_τ, term.functionals)
+        if isnothing(ψ) || isnothing(occupation)
+            τ = zero(ρ)
+        else
+            τ = compute_kinetic_energy_density(basis, ψ, occupation)
+        end
+    end
+
+    # Take derivatives of the density, if needed.
+    max_ρ_derivs = maximum(max_required_derivative, term.functionals)
+    density = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
+
+    # Evaluate terms and energy contribution (zk == energy per unit particle)
+    # It may happen that a functional does only provide a potenital and not an energy term
+    # Therefore skip_unsupported_derivatives=true to avoid an error.
+    terms = potential_terms(term.functionals, density)
+    @assert haskey(terms, :Vρ) && haskey(terms, :e)
+    E = term.scaling_factor * sum(terms.e) * basis.dvol
+
+    # Map from the tuple of spin indices for the contracted density gradient
+    # (s, t) to the index convention used in DftFunctionals (i.e. packed symmetry-adapted
+    # storage), see details on "Spin-polarised calculations" below.
+    tσ = DftFunctionals.spinindex_σ
+
+    # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
+    potential = zero(ρ)
+    @views for s in 1:n_spin
+        Vρ = reshape(terms.Vρ, n_spin, basis.fft_size...)
+
+        potential[:, :, :, s] .+= Vρ[s, :, :, :]
+        if haskey(terms, :Vσ) && any(x -> abs(x) > term.potential_threshold, terms.Vσ)
+            # Need gradient correction
+            # TODO Drop do-block syntax here?
+            potential[:, :, :, s] .+= -2divergence_real(basis) do α
+                Vσ = reshape(terms.Vσ, :, basis.fft_size...)
+
+                # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
+                # in the energy expression. See comment block below on spin-polarised XC.
+                sum((s == t ? one(T) : one(T)/2)
+                    .* Vσ[tσ(s, t), :, :, :] .* density.∇ρ_real[t, :, :, :, α]
+                    for t in 1:n_spin)
+            end
+        end
+        if haskey(terms, :Vl) && any(x -> abs(x) > term.potential_threshold, terms.Vl)
+            @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
+            mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
+            Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
+            Vl_fourier = fft(basis, Vl[s, :, :, :])
+            # TODO: forcing real-valued ifft; should be enforced at creation of array
+            potential[:, :, :, s] .+= irfft(basis, mG² .* Vl_fourier; check=Val(false))  # ΔVl
+        end
+    end
+
+    # DivAgrad contributions -½ Vτ
+    Vτ = nothing
+    if haskey(terms, :Vτ) && any(x -> abs(x) > term.potential_threshold, terms.Vτ)
+        # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
+        Vτ = reshape(terms.Vτ, n_spin, basis.fft_size...)
+        Vτ = term.scaling_factor * permutedims(Vτ, (2, 3, 4, 1))
+    end
+
+    # Note: We always have to do this, otherwise we get issues with AD wrt. scaling_factor
+    potential .*= term.scaling_factor
 
     ops = map(basis.kpoints) do kpt
         if !isnothing(Vτ)
@@ -535,10 +609,10 @@ function core_density_form_factors(el::Element, qs::AbstractArray{T})::IdDict{T,
 end
 
 """
-Compute the form factors (Fourier transforms of the core charge density) for all elements in
-`basis` at all unique |G| in `G_vectors_cart(basis)`. 
+Compute the core charge density for non-linear core correction as a superposition
+of atomic core charge densities.
 """
-function core_density_form_factors(basis::PlaneWaveBasis{T})::IdDict{Tuple{Int,T},T} where {T}
+function core_density_superposition(basis::PlaneWaveBasis{T})::Array{T,4} where {T}
     model = basis.model
     G_cart = G_vectors_cart(basis)
 
@@ -552,18 +626,6 @@ function core_density_form_factors(basis::PlaneWaveBasis{T})::IdDict{Tuple{Int,T
             end
         end
     end
-    form_factors
-end
-
-"""
-Compute the core charge density for non-linear core correction as a superposition
-of atomic core charge densities.
-"""
-function core_density_superposition(basis::PlaneWaveBasis{T})::Array{T,4} where {T}
-    model = basis.model
-    G_cart = G_vectors_cart(basis)
-
-    form_factors = core_density_form_factors(basis)
 
     ρcore_fourier = map(enumerate(G_vectors(basis))) do (iG, G)
         Gnorm = norm(G_cart[iG])
@@ -575,5 +637,10 @@ function core_density_superposition(basis::PlaneWaveBasis{T})::Array{T,4} where 
     end
     enforce_real!(basis, ρcore_fourier)  # Symmetrize Fourier coeffs to have real iFFT
     ρcore_real = irfft(basis, ρcore_fourier)
-    ρ_from_total_and_spin(ρcore_real, nothing)
+    if model.spin_polarization in (:none, :spinless)
+        ρspin = nothing
+    else
+        ρspin = zeros(T, basis.fft_size)
+    end
+    ρ_from_total_and_spin(ρcore_real, ρspin)
 end
