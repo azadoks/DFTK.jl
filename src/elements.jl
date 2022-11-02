@@ -28,7 +28,10 @@ n_elec_valence(el::Element) = charge_ionic(el)
 n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
 """Check presence of model core charge density (non-linear core correction)."""
-has_rho_core(::Element) = false
+has_density_core(::Element) = false
+
+"""Check whether non-linear core correction is enabled or disabled."""
+use_nlcc(::Element) = false
 
 """Radial local potential, in Fourier space: V(q) = int_{R^3} V(x) e^{-iqx} dx."""
 function local_potential_fourier(el::Element, q::AbstractVector)
@@ -96,9 +99,10 @@ local_potential_real(el::ElementCoulomb, r::Real) = -el.Z / r
 
 
 struct ElementPsp <: Element
-    Z::Int  # Nuclear charge
-    symbol  # Element symbol
-    psp     # Pseudopotential data structure
+    Z::Int         # Nuclear charge
+    symbol         # Element symbol
+    psp            # Pseudopotential data structure
+    use_nlcc::Bool # Flag to enable/disable non-linear core correction
 end
 function Base.show(io::IO, el::ElementPsp)
     pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
@@ -110,12 +114,17 @@ Element interacting with electrons via a pseudopotential model.
 `key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
 or an element name (e.g. `"silicon"`)
 """
-function ElementPsp(key; psp)
-    ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp)
+function ElementPsp(key; psp, use_nlcc=has_density_core(psp))
+    ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp, use_nlcc)
 end
+function ElementPsp(Z::Int, symbol, psp; use_nlcc=has_density_core(psp))
+    ElementPsp(Z, symbol, psp, use_nlcc)
+end
+
 charge_ionic(el::ElementPsp) = charge_ionic(el.psp)
 charge_nuclear(el::ElementPsp) = el.Z
-has_rho_core(el::ElementPsp) = has_rho_core(el.psp)
+has_density_core(el::ElementPsp) = has_density_core(el.psp)
+use_nlcc(el::ElementPsp) = has_density_core(el.psp) & el.use_nlcc
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
@@ -128,15 +137,15 @@ function local_potential_real(el::ElementPsp, r::Real)
 end
 
 function valence_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}
-    if has_rho_valence(el.psp)
-        eval_psp_rho_valence_fourier(el.psp, q)
+    if has_density_valence(el.psp)
+        eval_psp_density_valence_fourier(el.psp, q)
     else
         gaussian_valence_charge_density_fourier(el, q)
     end
 end
 
 function core_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}
-    eval_psp_rho_core_fourier(el.psp, q)
+    eval_psp_density_core_fourier(el.psp, q)
 end
 
 struct ElementCohenBergstresser <: Element

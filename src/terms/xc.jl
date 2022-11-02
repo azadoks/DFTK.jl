@@ -7,11 +7,10 @@ struct Xc
 
     # Threshold for potential terms: Below this value a potential term is counted as zero.
     potential_threshold::Real
-    use_nlcc::Bool  # Use non-linear core correction if available
 end
 function Xc(functionals::AbstractVector{<:Functional}; scaling_factor=1,
-            potential_threshold=0, use_nlcc=true)
-    Xc(functionals, scaling_factor, potential_threshold, use_nlcc)
+            potential_threshold=0)
+    Xc(functionals, scaling_factor, potential_threshold)
 end
 function Xc(functionals::AbstractVector; kwargs...)
     fun = map(functionals) do f
@@ -30,7 +29,7 @@ end
 function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
     # Charge density for non-linear core correction
-    if any(has_rho_core, basis.model.atoms) & xc.use_nlcc
+    if any(use_nlcc, basis.model.atoms)
         ρcore = core_density_superposition(basis)
     else
         ρcore = nothing
@@ -63,7 +62,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
 
     # Add the model core charge density (non-linear core correction) if available
     if !isnothing(term.ρcore)
-        ρ = copy(ρ) .+ term.ρcore
+        ρ = ρ + term.ρcore
     end
 
     # Compute kinetic energy density, if needed.
@@ -156,11 +155,15 @@ end
     isnothing(term.ρcore) && return nothing
 
     _, Vxc_real, _ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
-    Vxc_fourier = fft(basis, Vxc_real)
+    if basis.model.spin_polarization in (:none, :spinless)
+        Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
+    else
+        Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
+    end
 
     model = basis.model
     nlcc_groups = [group for group in basis.model.atom_groups
-                   if has_rho_core(model.atoms[first(group)])]
+                   if has_density_core(model.atoms[first(group)])]
     @assert !isnothing(nlcc_groups)
 
     forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
@@ -169,22 +172,20 @@ end
         form_factors = core_density_form_factors(element, norm.(G_vectors_cart(basis)))
         for iatom in group
             r = model.positions[iatom]
-            forces[iatom] = _force_xc_internal(basis, Vxc_fourier, term.ρcore,
-                                               form_factors, r)
+            forces[iatom] = _force_xc_internal(basis, Vxc_fourier, form_factors, r)
         end
     end
     forces
 end
 
-function _force_xc_internal(basis, Vxc_fourier, ρcore_fourier, form_factors, r)
-    T = real(eltype(ρcore_fourier))
+function _force_xc_internal(basis, Vxc_fourier, form_factors, r)
+    T = real(eltype(basis))
     f = zero(Vec3{T})
     for (iG, (G, G_cart)) in enumerate(zip(G_vectors(basis), G_vectors_cart(basis)))
         f -= real(conj(Vxc_fourier[iG])
-                  .* ρcore_fourier[iG]
                   .* form_factors[norm(G_cart)]
                   .* cis2pi(-dot(G, r))
-                  .* -2T(π) .* G .* im
+                  .* (-2T(π)) .* G .* im
                   ./ sqrt(basis.model.unit_cell_volume))
     end
     f

@@ -54,6 +54,9 @@ export charge_ionic
 export atomic_symbol
 export n_elec_valence
 export n_elec_core
+export has_rho_core
+export has_rho_valence
+export use_nlcc
 include("elements.jl")
 
 export SymOp

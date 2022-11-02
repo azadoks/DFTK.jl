@@ -162,8 +162,8 @@ function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, r_projs, h, pswfcs, 
 end
 
 charge_ionic(psp::PspUpf) = psp.Zion
-has_rho_valence(psp::PspUpf) = !all(iszero, psp.r2_4π_ρion)
-has_rho_core(psp::PspUpf) = !all(iszero, psp.ρcore)
+has_density_valence(psp::PspUpf) = !all(iszero, psp.r2_4π_ρion)
+has_density_core(psp::PspUpf) = !all(iszero, psp.ρcore)
 
 """
     eval_psp_projector_real(psp::PspUpf, i::Number, l::Number, r<:Real)
@@ -214,17 +214,17 @@ function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
     4T(π) * (s - psp.Zion / q) / q
 end
 
-function eval_psp_rho_valence_real(psp::PspUpf, r::T) where {T <: Real}
+function eval_psp_density_valence_real(psp::PspUpf, r::T) where {T <: Real}
     psp.r2_4π_ρion_interp(r) / (r^2 * 4T(π))
 end
 
 """
-    eval_psp_rho_valence_fourier(psp::PspUpf, q<:Real)
+    eval_psp_density_valence_fourier(psp::PspUpf, q<:Real)
 
 For UPFs, the integral is transformed into the following sum:
 Σ{i} j_0(q r[i]) r^2 4π ρval[i] dr[i]
 """
-function eval_psp_rho_valence_fourier(psp::PspUpf, q::T) where {T <: Real}
+function eval_psp_density_valence_fourier(psp::PspUpf, q::T) where {T <: Real}
     s = zero(T)
     @inbounds for ir = eachindex(psp.r2_4π_ρion_dr)
         s += sphericalbesselj_fast(0, q * psp.rgrid[ir]) * psp.r2_4π_ρion_dr[ir]
@@ -232,17 +232,17 @@ function eval_psp_rho_valence_fourier(psp::PspUpf, q::T) where {T <: Real}
     s
 end
 
-function eval_psp_rho_core_real(psp::PspUpf, r::T) where {T <: Real}
+function eval_psp_density_core_real(psp::PspUpf, r::T) where {T <: Real}
     psp.ρcore_interp(r)
 end
 
 """
-    eval_psp_rho_core_fourier(psp::PspUpf, q<:Real)
+    eval_psp_density_core_fourier(psp::PspUpf, q<:Real)
 
 For UPFs, the integral is transformed into the following sum:
 4π Σ{i} j_0(q r[i]) r^2 ρcore[i] dr[i]
 """
-function eval_psp_rho_core_fourier(psp::PspUpf, q::T) where {T <: Real}
+function eval_psp_density_core_fourier(psp::PspUpf, q::T) where {T <: Real}
     s = zero(T)
     @inbounds for ir = eachindex(psp.r2_ρcore_dr)
         s += sphericalbesselj_fast(0, q * psp.rgrid[ir]) * psp.r2_ρcore_dr[ir]
