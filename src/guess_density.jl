@@ -140,7 +140,7 @@ function _psp_form_factors(basis::PlaneWaveBasis{T})::IdDict{Tuple{Int,T},T} whe
         for (igroup, group) in enumerate(model.atom_groups)
             if !haskey(form_factors, (igroup, Gnorm))
                 element = model.atoms[first(group)]
-                form_factor = eval_psp_rho_valence_fourier(element.psp, Gnorm)
+                form_factor = eval_psp_density_valence_fourier(element.psp, Gnorm)
                 form_factors[(igroup, Gnorm)] = form_factor
             end
         end
