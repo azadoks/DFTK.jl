@@ -27,7 +27,8 @@ include("testcases.jl")
     pos2 = [pos1[1] + ε * disp, pos1[2]]
     pos3 = [pos1[1] - ε * disp, pos1[2]]
 
-    # second-order finite differences for accurate comparison; TODO switch the other tests to this too
+    # second-order finite differences for accurate comparison
+    # TODO switch the other tests to this too
     E1, F1, Fc1 = energy_forces(pos1)
     E2,  _,  _  = energy_forces(pos2)
     E3,  _,  _  = energy_forces(pos3)
@@ -36,7 +37,8 @@ include("testcases.jl")
     diff_forces = dot(F1[1], disp)
     @test abs(diff_findiff - diff_forces) < 1e-7
 
-    # Test against QE v7.1 using LibXC v5.3.2 lda_x+lda_c_pw (see testcases_QuantumESPRESSO/silicon_LDA_forces)
+    # Test against QE v7.1 using LibXC v5.3.2 lda_x+lda_c_pw
+    # (see testcases_QuantumESPRESSO/silicon_LDA_forces)
     reference = [[-5.809880257762980e-3, -4.601261807107919e-3, -3.374609176201532e-3],
                  [ 5.809880257762980e-3,  4.601261807107919e-3,  3.374609176201532e-3]]
     @test maximum(v -> maximum(abs, v), reference - Fc1) < 1e-5
@@ -66,7 +68,8 @@ end
     pos2 = [pos1[1] + ε * disp, pos1[2]]
     pos3 = [pos1[1] - ε * disp, pos1[2]]
 
-    # second-order finite differences for accurate comparison; TODO switch the other tests to this too
+    # second-order finite differences for accurate comparison
+    # TODO switch the other tests to this too
     E1, F1, Fc1 = energy_forces(pos1)
     E2,  _,  _  = energy_forces(pos2)
     E3,  _,  _  = energy_forces(pos3)

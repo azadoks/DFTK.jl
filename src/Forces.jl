@@ -46,7 +46,6 @@ function Forces(scfres)
         f = compute_forces(term, scfres.basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
         if isnothing(f)
             f
-            # [zero(Vec3{eltype(scfres.basis)}) for _ in scfres.basis.model.positions]
         else
             covector_red_to_cart.(scfres.basis.model, f)
         end

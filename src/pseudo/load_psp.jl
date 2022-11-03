@@ -21,20 +21,22 @@ function load_psp(key::AbstractString)
         error("Could not determine pseudopotential family of '$key'")
     end
 
-    Sys.iswindows() && (key = replace(key, "/" => "\\"))
-    if isfile(key)  # Key is a file ... deduce identifier
-        fullpath = key
-        identifier = replace(key, "\\" => "/")
-        if startswith(identifier, datadir_psp())
-            identifier = identifier[length(datadir_psp())+1:end]
-        end
-    elseif startswith(lowercase(key), r"http://|https://")  # Key is a URL .. download it
+    if startswith(lowercase(key), r"http://|https://")  # Key is a URL .. download it
         fullpath = Downloads.download(key, joinpath(tempdir(), "psp$(extension)"))
         identifier = key
-    else  # Not a file or url: treat as identifier, add extension if needed
-        fullpath = joinpath(datadir_psp(), lowercase(key))
-        isfile(fullpath) || (fullpath = fullpath * extension)
-        identifier = replace(lowercase(key), "\\" => "/")
+    else
+        Sys.iswindows() && (key = replace(key, "/" => "\\"))
+        if isfile(key)  # Key is a file ... deduce identifier
+            fullpath = key
+            identifier = replace(key, "\\" => "/")
+            if startswith(identifier, datadir_psp())
+                identifier = identifier[length(datadir_psp())+1:end]
+            end
+        else  # Not a file or url: treat as identifier, add extension if needed
+            fullpath = joinpath(datadir_psp(), lowercase(key))
+            isfile(fullpath) || (fullpath = fullpath * extension)
+            identifier = replace(lowercase(key), "\\" => "/")
+        end
     end
 
     if isfile(fullpath)
