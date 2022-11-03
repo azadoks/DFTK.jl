@@ -3,7 +3,7 @@ using Downloads
 using DFTK: eval_psp_projector_fourier, eval_psp_projector_real
 using DFTK: eval_psp_local_real, eval_psp_local_fourier
 using DFTK: eval_psp_density_valence_real, eval_psp_density_valence_fourier
-using DFTK: eval_psp_rho_core_real, eval_psp_rho_core_fourier
+using DFTK: eval_psp_density_core_real, eval_psp_density_core_fourier
 using DFTK: eval_psp_energy_correction
 using DFTK: count_n_proj_radial
 using SpecialFunctions: sphericalbesselj
@@ -156,14 +156,14 @@ end
 
 @testset "Core charge densities are consistent in real and Fourier space" begin
     function integrand(psp, q, r)
-        4π * r^2 * eval_psp_rho_core_real(psp, r) * sphericalbesselj(0, q * r)
+        4π * r^2 * eval_psp_density_core_real(psp, r) * sphericalbesselj(0, q * r)
     end
     for psp in values(upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[ir_start],
                                psp.rgrid[end])[1]
-            @test reference  ≈ eval_psp_rho_core_fourier(psp, q) rtol=1e-1 rtol=1e-1
+            @test reference  ≈ eval_psp_density_core_fourier(psp, q) rtol=1e-1 rtol=1e-1
         end
     end
 end
