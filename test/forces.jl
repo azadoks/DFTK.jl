@@ -42,46 +42,6 @@ include("testcases.jl")
     @test maximum(v -> maximum(abs, v), reference - Fc1) < 1e-5
 end
 
-@testset "Forces on silicon with numeric pseuopotential" begin
-    function energy_forces(positions)
-        Si = ElementPsp(silicon.atnum, :Si, load_psp(silicon.psp_upf), use_nlcc=false)
-        atoms = fill(Si, length(silicon.atoms))
-        model = model_DFT(silicon.lattice, atoms, positions, [:lda_x, :lda_c_pw])
-        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
-                               symmetries_respect_rgrid=true,
-                               fft_size=(18, 18, 18))  # FFT chosen to match QE
-        is_converged = DFTK.ScfConvergenceDensity(1e-11)
-        scfres = self_consistent_field(basis; is_converged)
-        scfres.energies.total, compute_forces(scfres), compute_forces_cart(scfres)
-    end
-
-    # symmetrical positions, forces should be 0
-    _, F0, _ = energy_forces([(ones(3)) / 8, -ones(3) / 8])
-    @test norm(F0) < 1e-4
-
-    pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
-    disp = rand(3)
-    mpi_mean!(disp, MPI.COMM_WORLD)  # must be identical on all processes
-    ε = 1e-5
-    pos2 = [pos1[1] + ε * disp, pos1[2]]
-    pos3 = [pos1[1] - ε * disp, pos1[2]]
-
-    # second-order finite differences for accurate comparison; TODO switch the other tests to this too
-    E1, F1, Fc1 = energy_forces(pos1)
-    E2,  _,  _  = energy_forces(pos2)
-    E3,  _,  _  = energy_forces(pos3)
-
-    diff_findiff = -(E2 - E3) / (2ε)
-    diff_forces = dot(F1[1], disp)
-    @test abs(diff_findiff - diff_forces) < 1e-7
-
-    # Test against Abinit v9.6.2 using LibXC v4.3.2 lda_x+lda_c_pw
-    # (see testcases_ABINIT/silicon_NLCC_forces)
-    reference = [[-0.00595736914525, -0.00471670661870, -0.00345694060249],
-                 [ 0.00595736914525,  0.00471670661870,  0.00345694060249]]
-    @test maximum(v -> maximum(abs, v), reference - Fc1) < 1e-5
-end
-
 @testset "Forces on silicon with non-linear core correction" begin
     function energy_forces(positions)
         Si = ElementPsp(silicon.atnum, :Si, load_psp(silicon.psp_upf))
