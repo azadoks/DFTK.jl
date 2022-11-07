@@ -225,9 +225,8 @@ trial_damping(damping::FixedDamping, args...) = damping.α
 @timing function scf_potential_mixing(
     basis::PlaneWaveBasis;
     damping=FixedDamping(0.8),
-    nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
-    fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
-    ρ=guess_density(basis),
+    nbandsalg::NbandsAlgorithm=AdaptiveBands(basis),
+    ρ=guess_density(basis, AutoGuessDensity()),
     V=nothing,
     ψ=nothing,
     tol=1e-6,

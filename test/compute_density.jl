@@ -21,7 +21,7 @@ if mpi_nprocs() == 1  # not easy to distribute
         model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions,
                           :lda_xc_teter93; symmetries, kwargs...)
         basis = PlaneWaveBasis(model; Ecut, kgrid, kshift, symmetries_respect_rgrid=false)
-        ham = Hamiltonian(basis; ρ=guess_density(basis))
+        ham = Hamiltonian(basis; ρ=guess_density(basis, AutoGuessDensity()))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol)
         occ, εF = DFTK.compute_occupation(basis, res.λ, FermiBisection())

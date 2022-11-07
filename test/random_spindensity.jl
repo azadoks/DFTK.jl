@@ -8,7 +8,7 @@ include("testcases.jl")
                           spin_polarization, temperature=0.01)
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[1, 1, 1] / 2)
 
-        ρtot = total_density(guess_density(basis))
+        ρtot = total_density(guess_density(basis. AutoGuessDensity()))
         if spin_polarization == :collinear
             spin_factors = 0.9 .+ 0.1rand(basis.fft_size...)
             ρspin = spin_factors .* ρtot

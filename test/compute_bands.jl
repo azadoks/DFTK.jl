@@ -125,7 +125,7 @@ end
     basis    = PlaneWaveBasis(model, Ecut, kinter, kweights)
 
     # Check that plain diagonalization and compute_bands agree
-    ρ   = guess_density(basis)
+    ρ   = guess_density(basis, AutoGuessDensity())
     ham = Hamiltonian(basis; ρ)
     band_data = compute_bands(basis, kinter; ρ, n_bands)
 

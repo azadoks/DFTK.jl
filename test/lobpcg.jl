@@ -113,7 +113,7 @@ end
     Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, :lda_xc_teter93)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights)
-    ham = Hamiltonian(basis; ρ=guess_density(basis))
+    ham = Hamiltonian(basis; ρ=guess_density(basis, AutoGuessDensity()))
 
     res1 = diagonalize_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
     res2 = diagonalize_all_kblocks(diag_full, ham, 5, tol=1e-8, interpolate_kpoints=false)

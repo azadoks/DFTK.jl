@@ -1,14 +1,56 @@
-"""
-    random_density(basis; n_electrons=basis.model.n_electrons)
+abstract type GuessDensityMethod end
 
-Generate a physically valid random density integrating to the given number of electrons.
-If the basis is has more than one spin component, the spin density is randomly generated
-without symmetry.
+struct RandomGuessDensity <: GuessDensityMethod
+    n_electrons
+end
+struct GaussianGuessDensity <: GuessDensityMethod end
+struct PspGuessDensity <: GuessDensityMethod end
+struct AutoGuessDensity <: GuessDensityMethod end
+
+@doc raw"""
+    guess_density(basis::PlaneWaveBasis, method::GuessDensityMethod,
+                  magnetic_moments=[])
+
+Build a superposition of atomic densities (SAD) guess density.
+
+The guess atomic densities are taken as one of the following depending on the input
+`method`:
+
+-`RandomGuessDensity(n_electrons)`: A random density, normalized to the number of electrons
+provided. Does not support magnetic moments.
+-`AutoGuessDensity()`: A combination of the `:gaussian` and `:psp` methods where
+elements whose pseudopotentials provide numeric valence charge density data use them and
+elements without use Gaussians.
+-`GaussianGuessDensity()`: Gaussians of length specified by `atom_decay_length`
+normalized for the correct number of electrons:
+```math
+\hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
+```
+- `PspGuessDensity()`: Numerical pseudo-atomic valence charge densities from the
+pseudopotentials. Will fail if one or more elements in the system has a pseudopotential
+that does not have valence charge density data.
+
+When magnetic moments are provided, construct a symmetry-broken density guess.
+The magnetic moments should be specified in units of ``μ_B``.
 """
-function random_density(basis::PlaneWaveBasis; n_electrons=basis.model.n_electrons)
-    T = eltype(basis)
+function guess_density(basis::PlaneWaveBasis{T}, method::GuessDensityMethod,
+                       magnetic_moments=[]) where {T}
+    ρtot = _atomic_density_superposition(basis, method)
+    ρspin = _guess_spin_density(basis, method, magnetic_moments)
+    ρ = ρ_from_total_and_spin(ρtot, ρspin)
+    
+    Z = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
+    if abs(Z - basis.model.n_electrons) > sqrt(eps(eltype(ρ)))
+        ρ *= basis.model.n_electrons / Z  # Renormalize to the correct number of electrons
+        Z_renormalized = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
+        @info @sprintf "Renormalized guess density from %0.9f to %0.9f" Z Z_renormalized
+    end
+    ρ
+end
+
+function guess_density(basis::PlaneWaveBasis{T}, method::RandomGuessDensity) where {T}
     ρtot  = rand(T, basis.fft_size)
-    ρtot  = ρtot .* n_electrons ./ (sum(ρtot) * basis.dvol)  # Integration to n_electrons
+    ρtot  = ρtot .* method.n_electrons ./ (sum(ρtot) * basis.dvol)  # Integration to n_electrons
     ρspin = nothing
     if basis.model.n_spin_components > 1
         ρspin = rand((-1, 1), basis.fft_size ) .* rand(T, basis.fft_size) .* ρtot
@@ -17,54 +59,8 @@ function random_density(basis::PlaneWaveBasis; n_electrons=basis.model.n_electro
     ρ_from_total_and_spin(ρtot, ρspin)
 end
 
-@doc raw"""
-    guess_density(basis; magnetic_moments=[], method=:smart)
-
-Build a superposition of atomic densities (SAD) guess density.
-
-The guess atomic densities are taken as one of the following depending on the input
-`method`:
-
--`:smart`: A combination of the `:gaussian` and `:psp` methods where elements whose
-pseudopotentials provide numeric valence charge density data use them and elements without
-use Gaussians.
--`:gaussian`: Gaussians of length specified by `atom_decay_length` normalized for the
-correct number of electrons:
-```math
-\hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
-```
-- `:psp`: Numerical pseudo-atomic valence charge densities from the pseudopotentials. Will
-fail if one or more elements in the system has a pseudopotential that does not have 
-valence charge density data.
-
-When magnetic moments are provided, construct a symmetry-broken density guess.
-The magnetic moments should be specified in units of ``μ_B``.
-"""
-function guess_density(basis::PlaneWaveBasis; magnetic_moments=[], method=:smart,
-                       n_electrons=basis.model.n_electrons)
-    guess_density(basis, basis.model.atoms, magnetic_moments, method, n_electrons)
-end
-
-@timing function guess_density(basis::PlaneWaveBasis, atoms, magnetic_moments, method,
-                               n_electrons)
-    ρtot = _guess_total_density(basis, method)
-    ρspin = _guess_spin_density(basis, atoms, magnetic_moments, method)
-    ρ = ρ_from_total_and_spin(ρtot, ρspin)
-    Z = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
-    if abs(Z - n_electrons) > sqrt(eps(eltype(ρ)))
-        ρ *= n_electrons / Z  # Renormalize to the correct number of electrons
-        Z_renormalized = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
-        @info @sprintf "Renormalized guess density from %0.9f to %0.9f" Z Z_renormalized
-    end
-    ρ
-end
-
-function _guess_total_density(basis::PlaneWaveBasis{T}, method) where {T}
-    _atomic_density_superposition(basis; method=method)
-end
-
-function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments,
-                             method) where {T}
+function _guess_spin_density(basis::PlaneWaveBasis{T}, method::GuessDensityMethod,
+                             magnetic_moments) where {T}
     model = basis.model
     if model.spin_polarization in (:none, :spinless)
         isempty(magnetic_moments) && return nothing
@@ -80,7 +76,7 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments,
         return zeros_like(basis.G_vectors, T, basis.fft_size...)
     end
 
-    @assert length(magmoms) == length(atoms)
+    @assert length(magmoms) == length(basis.model.atoms)
     coefficients = map(zip(atoms, magmoms)) do (atom, magmom)
         iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
         magmom[3] ≤ n_elec_valence(atom) || error(
@@ -89,27 +85,16 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments,
         )
         magmom[3] / n_elec_valence(atom)
     end
-    _atomic_density_superposition(basis; coefficients, method)
+    _atomic_density_superposition(basis, method; coefficients)
 end
 
-"""
-Build the a charge density for an atomic system as a superposition of atomic valence
-charge densities.
-"""
-function _atomic_density_superposition(basis::PlaneWaveBasis{T};
-    coefficients=ones(T, length(basis.model.atoms)), method=:smart)::Array{T,3} where {T}
+function _atomic_density_superposition(basis::PlaneWaveBasis{T}, method::GuessDensityMethod;
+                                       coefficients=ones(T, length(basis.model.atoms))
+                                       )::Array{T,3} where {T}
     model = basis.model
     G_cart = G_vectors_cart(basis)
 
-    if method == :smart
-        form_factors = _smart_form_factors(basis)
-    elseif method == :gaussian
-        form_factors = _gaussian_form_factors(basis)
-    elseif method == :psp
-        form_factors = _psp_form_factors(basis)
-    else
-        error("Unknown density superposition method '$(string(method))'.")
-    end
+    form_factors = _valence_density_form_factors(basis, method)
 
     ρ = map(enumerate(G_vectors(basis))) do (iG, G)
         Gnorm = norm(G_cart[iG])
@@ -125,7 +110,8 @@ function _atomic_density_superposition(basis::PlaneWaveBasis{T};
     irfft(basis, ρ)
 end
 
-function _gaussian_form_factors(basis::PlaneWaveBasis{T})::IdDict{Tuple{Int,T},T} where {T}
+function _valence_density_form_factors(basis::PlaneWaveBasis{T}, ::GaussianGuessDensity,
+                                      )::IdDict{Tuple{Int,T},T} where {T<:Real}
     model = basis.model
     form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
     for G in G_vectors_cart(basis)
@@ -141,7 +127,8 @@ function _gaussian_form_factors(basis::PlaneWaveBasis{T})::IdDict{Tuple{Int,T},T
     form_factors
 end
 
-function _psp_form_factors(basis::PlaneWaveBasis{T})::IdDict{Tuple{Int,T},T} where {T}
+function _valence_density_form_factors(basis::PlaneWaveBasis{T}, ::PspGuessDensity,
+                                      )::IdDict{Tuple{Int,T},T} where {T<:Real}
     model = basis.model
     form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
     for G in G_vectors_cart(basis)
@@ -157,7 +144,8 @@ function _psp_form_factors(basis::PlaneWaveBasis{T})::IdDict{Tuple{Int,T},T} whe
     form_factors
 end
 
-function _smart_form_factors(basis::PlaneWaveBasis{T})::IdDict{Tuple{Int,T},T} where {T}
+function _valence_density_form_factors(basis::PlaneWaveBasis{T}, ::AutoGuessDensity,
+                                      )::IdDict{Tuple{Int,T},T} where {T}
     model = basis.model
     form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
     for G in G_vectors_cart(basis)

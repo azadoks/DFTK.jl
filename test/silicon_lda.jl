@@ -32,7 +32,7 @@ function run_silicon_lda(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
 
     spin_polarization == :collinear && (ref_lda = vcat(ref_lda, ref_lda))
     run_scf_and_compare(T, basis, ref_lda, ref_etot;
-                        ρ=guess_density(basis),
+                        ρ=guess_density(basis, AutoGuessDensity()),
                         kwargs...)
 end
 

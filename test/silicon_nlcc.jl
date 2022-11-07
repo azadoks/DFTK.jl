@@ -35,7 +35,7 @@ function run_silicon_nlcc(T; Ecut=5, grid_size=15, spin_polarization=:none, kwar
 
     spin_polarization == :collinear && (ref_nlcc = vcat(ref_nlcc, ref_nlcc))
     run_scf_and_compare(T, basis, ref_nlcc, ref_etot;
-                        ρ=guess_density(basis), kwargs...)
+                        ρ=guess_density(basis, AutoGuessDensity()), kwargs...)
 end
 
 @testset "Silicon NLCC (small, Float64)" begin

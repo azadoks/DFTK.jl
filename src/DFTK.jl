@@ -169,12 +169,16 @@ export kgrid_from_minimal_spacing, kgrid_from_minimal_n_kpoints
 include("symmetry.jl")
 include("bzmesh.jl")
 
+export RandomGuessDensity
+export GaussianGuessDensity
+export PspGuessDensity
+export AutoGuessDensity
 export guess_density
-export random_density
+include("guess_density.jl")
+
 export load_psp
 export list_psp
 export attach_psp
-include("guess_density.jl")
 include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 include("pseudo/attach_psp.jl")
