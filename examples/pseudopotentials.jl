@@ -1,4 +1,4 @@
-examples/pseudopotentials.jl# # Pseudopotentials
+# # Pseudopotentials
 #
 # In this example, we'll look at how to use various pseudopotential (PSP)
 # formats in DFTK and discuss briefly the utility and importance of
