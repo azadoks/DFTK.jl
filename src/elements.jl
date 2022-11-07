@@ -118,13 +118,16 @@ function ElementPsp(key; psp, use_nlcc=has_density_core(psp))
     ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp, use_nlcc)
 end
 function ElementPsp(Z::Int, symbol, psp; use_nlcc=has_density_core(psp))
+    if (use_nlcc & !has_density_core(psp))
+        error("Cannot use NLCC for pseudopotentials that do not contain core charge density")
+    end
     ElementPsp(Z, symbol, psp, use_nlcc)
 end
 
 charge_ionic(el::ElementPsp) = charge_ionic(el.psp)
 charge_nuclear(el::ElementPsp) = el.Z
 has_density_core(el::ElementPsp) = has_density_core(el.psp)
-use_nlcc(el::ElementPsp) = has_density_core(el.psp) & el.use_nlcc
+use_nlcc(el::ElementPsp) = el.use_nlcc
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
