@@ -34,8 +34,7 @@ include("testcases.jl")
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = basis
-        ρ = guess_density(basis; magnetic_moments=[1.0, -1.0],
-                          method=GaussianGuessDensity())
+        ρ = guess_density(basis, GaussianGuessDensity(), [1.0, -1.0])
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
 
@@ -49,12 +48,12 @@ include("testcases.jl")
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = build_basis([Si_upf, Si_upf], :collinear)
-        ρ = guess_density(basis, PspGuessDensity(), magnetic_moments=[1.0, -1.0])
+        ρ = guess_density(basis, PspGuessDensity(), [1.0, -1.0])
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
 
         basis = build_basis([Si_upf, Si_hgh], :collinear)
         @test_throws "MethodError" guess_density(basis, PspGuessDensity(),
-                                                 magnetic_moments=[1.0, -1.0])
+                                                 [1.0, -1.0])
     end
 
     @testset "Auto" begin
@@ -67,7 +66,7 @@ include("testcases.jl")
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = build_basis([Si_upf, Si_hgh], :collinear)
-        ρ = guess_density(basis, AutoGuessDensity(), magnetic_moments=[1.0, -1.0])
+        ρ = guess_density(basis, AutoGuessDensity(), [1.0, -1.0])
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
 end

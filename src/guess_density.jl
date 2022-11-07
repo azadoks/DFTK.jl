@@ -77,7 +77,7 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, method::GuessDensityMetho
     end
 
     @assert length(magmoms) == length(basis.model.atoms)
-    coefficients = map(zip(atoms, magmoms)) do (atom, magmom)
+    coefficients = map(zip(basis.model.atoms, magmoms)) do (atom, magmom)
         iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
         magmom[3] ≤ n_elec_valence(atom) || error(
             "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(atom)) " *
