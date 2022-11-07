@@ -40,14 +40,23 @@ valence charge density data.
 When magnetic moments are provided, construct a symmetry-broken density guess.
 The magnetic moments should be specified in units of ``μ_B``.
 """
-function guess_density(basis::PlaneWaveBasis; magnetic_moments=[], method=:smart)
-    guess_density(basis, basis.model.atoms, magnetic_moments, method)
+function guess_density(basis::PlaneWaveBasis; magnetic_moments=[], method=:smart,
+                       n_electrons=basis.model.n_electrons)
+    guess_density(basis, basis.model.atoms, magnetic_moments, method, n_electrons)
 end
 
-@timing function guess_density(basis::PlaneWaveBasis, atoms, magnetic_moments, method)
+@timing function guess_density(basis::PlaneWaveBasis, atoms, magnetic_moments, method,
+                               n_electrons)
     ρtot = _guess_total_density(basis, method)
     ρspin = _guess_spin_density(basis, atoms, magnetic_moments, method)
-    ρ_from_total_and_spin(ρtot, ρspin)
+    ρ = ρ_from_total_and_spin(ρtot, ρspin)
+    Z = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
+    if abs(Z - n_electrons) > sqrt(eps(eltype(ρ)))
+        ρ *= n_electrons / Z  # Renormalize to the correct number of electrons
+        Z_renormalized = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
+        @info @sprintf "Renormalized guess density from %0.9f to %0.9f" Z Z_renormalized
+    end
+    ρ
 end
 
 function _guess_total_density(basis::PlaneWaveBasis{T}, method) where {T}

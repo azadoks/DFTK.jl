@@ -129,6 +129,7 @@ Random.seed!(0)
         include("compute_jacobian_eigen.jl")
         include("printing.jl")
         include("energy_cutoff_smearing.jl")
+        include("guess_density.jl")
     end
 
     if "all" in TAGS && mpi_master()
