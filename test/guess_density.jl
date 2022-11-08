@@ -50,10 +50,6 @@ include("testcases.jl")
         basis = build_basis([Si_upf, Si_upf], :collinear)
         ρ = guess_density(basis, PspGuessDensity(), [1.0, -1.0])
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-
-        basis = build_basis([Si_upf, Si_hgh], :collinear)
-        @test_throws "MethodError" guess_density(basis, PspGuessDensity(),
-                                                 [1.0, -1.0])
     end
 
     @testset "Auto" begin
