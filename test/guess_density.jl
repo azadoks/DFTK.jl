@@ -2,6 +2,10 @@ using Test
 using DFTK
 include("testcases.jl")
 
+if mpi_nprocs() == 1
+    # Downloads.download causes a race condition with multiple MPI processes
+    # TODO enable this test if we move to artefacts
+
 @testset "Guess density integrates to number of electrons" begin
     function build_basis(atoms, spin_polarization)
         model = model_LDA(silicon.lattice, atoms, silicon.positions; spin_polarization,
@@ -65,4 +69,6 @@ include("testcases.jl")
         ρ = guess_density(basis, AutoGuessDensity(), [1.0, -1.0])
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
+end
+
 end
