@@ -44,7 +44,7 @@ function guess_density(basis::PlaneWaveBasis{T}, method::GuessDensityMethod,
     isnothing(basis.model.n_electrons) && return ρ
 
     if (abs(Z - basis.model.n_electrons) > sqrt(eps(eltype(ρ)))) &
-        (basis.model.n_electrons > 0)
+        (basis.model.n_electrons > 0) & (Z > 0)
         ρ *= basis.model.n_electrons / Z  # Renormalize to the correct number of electrons
         Z_renormalized = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
         @info @sprintf "Renormalized guess density from %0.9f to %0.9f" Z Z_renormalized
