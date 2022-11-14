@@ -48,7 +48,7 @@ function valence_charge_density_fourier(el::Element, q::AbstractVector)
     valence_charge_density_fourier(el, norm(q))
 end
 
-"""Fallback to Gaussian valence charge density."""
+# Fall back to the Gaussian table for Elements without pseudopotentials
 function valence_charge_density_fourier(el::Element, q::T)::T where {T <: Real}
     gaussian_valence_charge_density_fourier(el, q)
 end

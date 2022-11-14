@@ -9,8 +9,8 @@ using LinearAlgebra
 
 # We use a numeric norm-conserving PSP in UPF format from the
 # [PseudoDojo](http://www.pseudo-dojo.org/) v0.4 scalar-relativistic LDA standard stringency
-# family because it containts valence charge densities which can be used for a more
-# tailored density guess.
+# family because it contains valence charge density which can be used for a more tailored
+# density guess.
 PSEUDOLIB = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary"
 URL_UPF = PSEUDOLIB * "/main/pseudos/pd_nc_sr_lda_standard_04_upf/Si.upf";
 
