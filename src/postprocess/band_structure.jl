@@ -84,7 +84,7 @@ end
                   "to compute bands. Either pass the self-consistent density as the ρ keyword " *
                   "argument or use the plot_bandstructure(scfres) function.")
         end
-        ρ = guess_density(basis, AutoGuessDensity())
+        ρ = guess_density(basis)
     end
 
     # Create basis with new kpoints, without any symmetry operations.

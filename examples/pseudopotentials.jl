@@ -34,22 +34,22 @@
 # using the two PSPs.
 
 using DFTK
-using Downloads
 using Unitful
 using Plots
+using LazyArtifacts
 
 # Here, we will use a Perdew-Wang LDA PSP from [PseudoDojo](http://www.pseudo-dojo.org/),
 # which is available in the JuliaMolSim
 # [PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary).
-
-PSEUDOLIB = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary"
-URL_UPF = PSEUDOLIB * "/main/pseudos/pd_nc_sr_lda_standard_04_upf/Si.upf";
+# Directories in PseudoLibrary correspond to artifacts that you can load using `artifact`
+# strings which evaluate to a filepath on your local machine where the artifact has been
+# downloaded.
 
 # We load the HGH and UPF PSPs using `load_psp`, which determines the
 # file format using the file extension.
 
 psp_hgh  = load_psp("hgh/lda/si-q4.hgh");
-psp_upf  = load_psp(URL_UPF);
+psp_upf  = load_psp(joinpath(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"));
 
 # First, we'll take a look at the energy cutoff convergence of these two pseudopotentials.
 # For both pseudos, a reference energy is calculated with a cutoff of 140 Hartree, and
@@ -80,7 +80,7 @@ function run_bands(psp)
     ## non-linear core correction to the exchange-correlation energy. This can be
     ## toggled using the `use_nlcc` keyword argument to `ElementPsp` if you _really_
     ## know what you're doing.
-    Si = ElementPsp(:Si; psp=psp, use_nlcc=has_density_core(psp))
+    Si = ElementPsp(:Si; psp=psp)
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]
 

@@ -2,10 +2,6 @@ using Test
 using DFTK
 include("testcases.jl")
 
-if mpi_nprocs() == 1
-    # Downloads.download causes a race condition with multiple MPI processes
-    # TODO enable this test if we move to artefacts
-
 @testset "Guess density integrates to number of electrons" begin
     function build_basis(atoms, spin_polarization)
         model = model_LDA(silicon.lattice, atoms, silicon.positions; spin_polarization,
@@ -16,59 +12,57 @@ if mpi_nprocs() == 1
 
 
     Si_upf = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_upf))
-    Si_hgh = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
+    Si_hgh = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_hgh))
 
     @testset "Random" begin
         basis = build_basis([Si_upf, Si_hgh], :none)
-        ρ = guess_density(basis, RandomGuessDensity(basis.model.n_electrons))
+        ρ = guess_density(basis; method=RandomGuessDensity())
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = build_basis([Si_upf, Si_hgh], :collinear)
-        ρ = guess_density(basis, RandomGuessDensity(basis.model.n_electrons))
+        ρ = guess_density(basis; method=RandomGuessDensity())
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
 
     @testset "Gaussian" begin
         basis = build_basis([Si_upf, Si_hgh], :none)
-        ρ = guess_density(basis, GaussianGuessDensity())
+        ρ = guess_density(basis; method=GaussianGuessDensity())
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = build_basis([Si_upf, Si_hgh], :collinear)
-        ρ = guess_density(basis, GaussianGuessDensity())
+        ρ = guess_density(basis; method=GaussianGuessDensity())
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = basis
-        ρ = guess_density(basis, GaussianGuessDensity(), [1.0, -1.0])
+        ρ = guess_density(basis; method=GaussianGuessDensity(), magnetic_moments=[1.0, -1.0])
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
 
     @testset "Pseudopotential" begin
         basis = build_basis([Si_upf, Si_upf], :none)
-        ρ = guess_density(basis, PspGuessDensity())
+        ρ = guess_density(basis; method=PspGuessDensity())
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = build_basis([Si_upf, Si_upf], :collinear)
-        ρ = guess_density(basis, PspGuessDensity())
+        ρ = guess_density(basis; method=PspGuessDensity())
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = build_basis([Si_upf, Si_upf], :collinear)
-        ρ = guess_density(basis, PspGuessDensity(), [1.0, -1.0])
+        ρ = guess_density(basis; method=PspGuessDensity(), magnetic_moments=[1.0, -1.0])
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
 
     @testset "Auto" begin
         basis = build_basis([Si_upf, Si_hgh], :none)
-        ρ = guess_density(basis, AutoGuessDensity())
+        ρ = guess_density(basis; method=AutoGuessDensity())
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = build_basis([Si_upf, Si_hgh], :collinear)
-        ρ = guess_density(basis, AutoGuessDensity())
+        ρ = guess_density(basis; method=AutoGuessDensity())
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = build_basis([Si_upf, Si_hgh], :collinear)
-        ρ = guess_density(basis, AutoGuessDensity(), [1.0, -1.0])
+        ρ = guess_density(basis; method=AutoGuessDensity(), magnetic_moments=[1.0, -1.0])
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
-end
-
 end

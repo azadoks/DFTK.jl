@@ -15,7 +15,7 @@ function discretized_hamiltonian(T, testcase)
     fft_size = nextpow.(2, compute_fft_size(model, Ecut))
     basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), fft_size)
 
-    Hamiltonian(basis; ρ=guess_density(basis, AutoGuessDensity()))
+    Hamiltonian(basis; ρ=guess_density(basis))
 end
 
 @testset "Application of an LDA Hamiltonian with Intervals" begin

@@ -26,7 +26,7 @@ function silicon_scf(method)
     model = model_LDA(lattice, atoms, positions)
     basis = PlaneWaveBasis(model; Ecut=12, kgrid=[4, 4, 4])
 
-    ρguess = guess_density(basis, method)
+    ρguess = guess_density(basis; method)
 
     is_converged = DFTK.ScfConvergenceEnergy(1e-10)
     self_consistent_field(basis; is_converged, ρ=ρguess)
@@ -34,16 +34,16 @@ end;
 
 # ## Random guess
 # The random density is normalized to the number of electrons provided.
-scfres_random = silicon_scf(RandomGuessDensity(8.0));
+scfres_random = silicon_scf(RandomGuessDensity());
 
 # ## Superposition of Gaussian densities
 # The Gaussians are defined by a tabulated atom decay length.
 scfres_gaussian = silicon_scf(GaussianGuessDensity());
 
-# ## Superposition of pseudopotential valence charge densities
-# This method only works when _all_ atoms are `ElementPsp`s and _all_ of the
-# pseudopotentials contain valence charge densities. If only some of the
-# pseudopotentials have valence charge densities, use the `AutoGuessDensity()` method
-# which uses Gaussian densities for atoms with pseudopotentials that don't have
-# valence charge densities.
-scfres_psp = silicon_scf(PspGuessDensity());
+# ## Automatic density guess
+# This method will automatically use valence charge densities from from pseudopotentials
+# that provide them and Gaussian densities for elements which do not have pseudopotentials
+# or whose pseudopotentials don't provide valence charge densities. To force all elements
+# to use valence charge densities (and error where any element doesn't have them), use
+# `PspDensityGuess()`. 
+scfres_psp = silicon_scf(AutoGuessDensity());

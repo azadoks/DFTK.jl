@@ -36,7 +36,7 @@ function compute_scfres(x)
     basis = PlaneWaveBasis(model; Ecut, kgrid)
     global ψ, ρ
     if isnothing(ρ)
-        ρ = guess_density(basis, AutoGuessDensity())
+        ρ = guess_density(basis)
     end
     is_converged = DFTK.ScfConvergenceForce(tol / 10)
     scfres = self_consistent_field(basis; ψ, ρ, is_converged, callback=identity)

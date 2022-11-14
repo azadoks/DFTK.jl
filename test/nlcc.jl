@@ -1,20 +1,19 @@
 using Test
 using DFTK: core_density_superposition
-using Downloads
 using LinearAlgebra
+using LazyArtifacts
 
-base_url = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary/main/pseudos/"
 pseudo_urls = Dict(
     # With NLCC
-    :Si => joinpath(base_url, "pd_nc_sr_lda_standard_04_upf/Si.upf"),
-    :Fe => joinpath(base_url, "pd_nc_sr_lda_standard_04_upf/Fe.upf"),
-    :Ir => joinpath(base_url, "pd_nc_sr_lda_standard_04_upf/Ir.upf"),
+    :Si => joinpath(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"),
+    :Fe => joinpath(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Fe.upf"),
+    :Ir => joinpath(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Ir.upf"),
     # Without NLCC
-    :Li => joinpath(base_url, "pd_nc_sr_lda_standard_04_upf/Li.upf"),
-    :Mg => joinpath(base_url, "pd_nc_sr_lda_standard_04_upf/Mg.upf")
+    :Li => joinpath(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
+    :Mg => joinpath(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf")
 )
 pseudos = Dict(
-    key => load_psp(Downloads.download(value, joinpath(tempdir(), "$(string(key)).upf")))
+    key => load_psp(value)
     for (key, value) in pseudo_urls
 )
 

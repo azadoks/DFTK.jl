@@ -41,7 +41,7 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
 
     spin_polarization == :collinear && (ref_redHF = vcat(ref_redHF, ref_redHF))
     run_scf_and_compare(T, basis, ref_redHF, ref_etot;
-                        ρ=guess_density(basis, AutoGuessDensity()), kwargs...)
+                        ρ=guess_density(basis), kwargs...)
 end
 
 

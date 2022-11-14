@@ -37,7 +37,7 @@ include("testcases.jl")
     end
 
     # Run other SCFs with SAD guess
-    ρ0 = guess_density(basis, AutoGuessDensity())
+    ρ0 = guess_density(basis)
     for solver in (scf_nlsolve_solver(), scf_damping_solver(1.2), scf_anderson_solver(),
                    scf_CROP_solver())
         @testset "Testing $solver" begin
@@ -73,7 +73,7 @@ end
     magnetic_moments = [1, 1]
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; magnetic_moments)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-    ρ0   = guess_density(basis, AutoGuessDensity(), magnetic_moments)
+    ρ0   = guess_density(basis; magnetic_moments)
     ρ_nl = self_consistent_field(basis; tol, ρ=ρ0).ρ
     scfres_start = self_consistent_field(basis, maxiter=1, ρ=ρ0)
     ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
@@ -106,7 +106,7 @@ end
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     # Reference: Default algorithm
-    ρ0    = guess_density(basis, AutoGuessDensity())
+    ρ0    = guess_density(basis)
     ρ_ref = self_consistent_field(basis; ρ=ρ0, tol).ρ
 
     for mixing in (KerkerDosMixing(), HybridMixing(RPA=true), LdosMixing(RPA=false),
@@ -129,7 +129,7 @@ end
     basis = PlaneWaveBasis(model; Ecut=11, fft_size, kgrid=[3, 3, 3])
 
     # Reference: Default algorithm
-    ρ0     = guess_density(basis, AutoGuessDensity(), magnetic_moments)
+    ρ0     = guess_density(basis; magnetic_moments)
     scfres = self_consistent_field(basis; ρ=ρ0, tol)
     ρ_ref  = scfres.ρ
 

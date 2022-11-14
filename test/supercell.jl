@@ -23,9 +23,11 @@ end
     Ecut    = 4
     kgrid   = [3, 3, 3]
     kshift  = zeros(3)
-    tol     = 1e-10
-
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    tol     = 1e-12
+    scf_tol = (; is_converged=DFTK.ScfConvergenceDensity(tol))
+    # Parameters
+    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_hgh))
+    model = model_LDA(silicon.lattice, [Si, Si], silicon.positions)
     basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
     basis_supercell = cell_to_supercell(basis)
 

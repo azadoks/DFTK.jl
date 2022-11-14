@@ -1,5 +1,4 @@
 using Test
-using Downloads
 using DFTK: eval_psp_projector_fourier, eval_psp_projector_real
 using DFTK: eval_psp_local_real, eval_psp_local_fourier
 using DFTK: eval_psp_density_valence_real, eval_psp_density_valence_fourier
@@ -8,23 +7,18 @@ using DFTK: eval_psp_energy_correction
 using DFTK: count_n_proj_radial
 using SpecialFunctions: sphericalbesselj
 using QuadGK
-
-if mpi_nprocs() == 1
-    # Downloads.download causes a race condition with multiple MPI processes
-    # TODO enable this test if we move to artefacts
-
-base_url = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary/main/pseudos/"
+using LazyArtifacts
 
 upf_urls = Dict(
     # Converged from HGH
-    :Si => joinpath(base_url, "hgh_pbe_upf/Si.pbe-hgh.UPF"),
-    :Tl => joinpath(base_url, "hgh_pbe_upf/Tl.pbe-d-hgh.UPF"),
+    :Si => joinpath(artifact"hgh_pbe_upf", "Si.pbe-hgh.UPF"),
+    :Tl => joinpath(artifact"hgh_pbe_upf", "Tl.pbe-d-hgh.UPF"),
     # No NLCC
-    :Li => joinpath(base_url, "pd_nc_sr_lda_standard_04_upf/Li.upf"),
-    :Mg => joinpath(base_url, "pd_nc_sr_pbe_standard_04_upf/Mg.upf"),
+    :Li => joinpath(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
+    :Mg => joinpath(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf"),
     # With NLCC
-    :Co => joinpath(base_url, "pd_nc_sr_pbe_standard_04_upf/Co.upf"),
-    :Ge => joinpath(base_url, "pd_nc_sr_pbe_standard_04_upf/Ge.upf"),
+    :Co => joinpath(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"),
+    :Ge => joinpath(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Ge.upf"),
 )
 upf_pseudos = Dict(symbol => load_psp(url) for (symbol, url) in upf_urls)
 hgh_pseudos = [
@@ -184,7 +178,7 @@ end
         atoms = [ElementPsp(element, psp=psp)]
         model = model_LDA(lattice, atoms, positions)
         basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
-        ρ_val = guess_density(basis, PspGuessDensity())
+        ρ_val = guess_density(basis; method=PspGuessDensity())
         ρ_val_neg = abs(sum(ρ_val[ρ_val .< 0]))
         @test ρ_val_neg * model.unit_cell_volume / prod(basis.fft_size) < 1e-6
     end
@@ -198,11 +192,9 @@ end
             atoms = [ElementPsp(element, psp=psp)]
             model = model_LDA(lattice, atoms, positions)
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
-            ρ_val = guess_density(basis, PspGuessDensity())
+            ρ_val = guess_density(basis; method=PspGuessDensity())
             Z_valence = sum(ρ_val) * model.unit_cell_volume / prod(basis.fft_size)
             @test Z_valence ≈ charge_ionic(psp) rtol=1e-5 atol=1e-5
         end
     end
-end
-
 end

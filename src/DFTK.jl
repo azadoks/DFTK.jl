@@ -174,7 +174,7 @@ export GaussianGuessDensity
 export PspGuessDensity
 export AutoGuessDensity
 export guess_density
-include("guess_density.jl")
+include("atomic_densities.jl")
 
 export load_psp
 export list_psp

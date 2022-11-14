@@ -25,7 +25,7 @@ function test_kernel(spin_polarization, termtype; test_compute=true)
         basis = PlaneWaveBasis(model; Ecut=2, kgrid, kshift)
         term  = only(basis.terms)
 
-        ρ0 = guess_density(basis, AutoGuessDensity(), magnetic_moments)
+        ρ0 = guess_density(basis; magnetic_moments)
         δρ = randn(size(ρ0))
         ρ_minus     = ρ0 - ε * δρ
         ρ_plus      = ρ0 + ε * δρ
@@ -68,7 +68,7 @@ function test_kernel_collinear_vs_noncollinear(termtype)
         basis_col = PlaneWaveBasis(model_col; Ecut, kgrid, kshift)
         term_col  = only(basis_col.terms)
 
-        ρ0 = guess_density(basis, AutoGuessDensity())
+        ρ0 = guess_density(basis)
         δρ = randn(size(ρ0))
         δV = DFTK.apply_kernel(term, basis, δρ; ρ=ρ0)
 
