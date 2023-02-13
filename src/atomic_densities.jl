@@ -76,7 +76,7 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, method::GuessDensityMetho
         @warn("Returning zero spin density guess, because no initial magnetization has " *
               "been specified in any of the given elements / atoms. Your SCF will likely " *
               "not converge to a spin-broken solution.")
-        return zeros_like(basis.G_vectors, T, basis.fft_size...)
+        return zeros(T, basis.fft_size)
     end
 
     @assert length(magmoms) == length(basis.model.atoms)
