@@ -37,6 +37,14 @@ function guess_density(basis::PlaneWaveBasis{T};
     return _guess_density(basis, method, magnetic_moments, n_electrons)
 end
 
+function guess_density(basis::PlaneWaveBasis,
+                      system::AbstractSystem;
+                      method=method::GuessDensityMethod=AutoGuessDensity(),
+                      n_electrons=basis.model.n_electrons)
+    parsed = parse_system(system)
+    guess_density(basis; method, n_electrons, magnetic_moments=parsed.magnetic_moments)
+end
+
 function _guess_density(basis::PlaneWaveBasis{T}, method::GuessDensityMethod,
                         magnetic_moments, n_electrons) where {T}
     ρtot = _guess_total_density(basis, method)
