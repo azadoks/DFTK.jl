@@ -38,8 +38,7 @@ include("testcases.jl")
 
     # Run other SCFs with SAD guess
     ρ0 = guess_density(basis)
-    for solver in (scf_nlsolve_solver(), scf_damping_solver(1.2), scf_anderson_solver(),
-                   scf_CROP_solver())
+    for solver in (scf_anderson_solver(), scf_damping_solver(1.2), scf_CROP_solver())
         @testset "Testing $solver" begin
             ρ_alg = self_consistent_field(basis; ρ=ρ0, solver, tol).ρ
             @test maximum(abs, ρ_alg - ρ_def) < 5tol
@@ -73,8 +72,8 @@ end
     magnetic_moments = [1, 1]
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; magnetic_moments)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-    ρ0   = guess_density(basis; magnetic_moments)
-    ρ_nl = self_consistent_field(basis; tol, ρ=ρ0).ρ
+    ρ0    = guess_density(basis; magnetic_moments)
+    ρ_def = self_consistent_field(basis; tol, ρ=ρ0).ρ
     scfres_start = self_consistent_field(basis, maxiter=1, ρ=ρ0)
     ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
                                      scfres_start.occupation)

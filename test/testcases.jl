@@ -10,7 +10,7 @@ silicon = (
                5.131570667152971 5.131570667152971  0.0],
     atnum = 14,
     n_electrons = 8,
-    temperature = nothing,
+    temperature = 0.0,
     psp_hgh = joinpath(hgh_lda_family, "si-q4.hgh"),
     psp_upf = joinpath(pd_lda_family, "Si.upf"),
     positions = [ones(3)/8, -ones(3)/8],  # in fractional coordinates
@@ -101,10 +101,10 @@ o2molecule = (
     lattice = diagm([6.5, 6.5, 9.0]),
     atnum = 8,
     n_electrons = 12,
-    psp_hgh = joinpath(hgh_lda_family, "o-q6.hgh"),
+    psp_hgh = joinpath(hgh_lda_family, "O-q6.hgh"),
     psp_upf = joinpath(pd_lda_family, "O.upf"),
     positions = 0.1155 * [[0, 0, 1], [0, 0, -1]],
     temperature = 0.02,
 )
 o2molecule = merge(o2molecule,
-                   (; atoms=fill(ElementPsp(o2molecule.atnum, psp=load_psp(o2molecule.psp)), 2)))
+                   (; atoms=fill(ElementPsp(o2molecule.atnum, psp=load_psp(o2molecule.psp_hgh)), 2)))
