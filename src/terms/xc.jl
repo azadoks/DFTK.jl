@@ -48,8 +48,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     end
     TermXc(convert(Vector{Functional}, functionals),
            convert_dual(T, xc.scaling_factor),
-           T(xc.potential_threshold),
-        ρcore   )
+           T(xc.potential_threshold), ρcore)
 end
 
 struct TermXc{T} <: TermNonlinear where {T}
@@ -59,7 +58,8 @@ struct TermXc{T} <: TermNonlinear where {T}
     ρcore::Union{Nothing, Array{T,4}}
 end
 
-function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation; ρ, τ=nothing) where {T}
+function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
+                           ρ, τ=nothing) where {T}
     @assert !isempty(term.functionals)
 
     model    = basis.model
@@ -141,7 +141,8 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
 end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
-                                              ψ, occupation; ρ, τ=nothing, kwargs...) where {T}
+                                              ψ, occupation; ρ, τ=nothing,
+                                              kwargs...) where {T}
     E, Vxc, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
 
     ops = map(basis.kpoints) do kpt
@@ -156,7 +157,8 @@ end
 end
 
 @timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},
-                                             ψ, occupation; ρ, τ=nothing, kwargs...) where {T}
+                                             ψ, occupation; ρ, τ=nothing,
+                                             kwargs...) where {T}
     # the only non-zero force contribution is from the nlcc core charge
     # early return if nlcc is disabled / no elements have model core charges
     isnothing(term.ρcore) && return nothing

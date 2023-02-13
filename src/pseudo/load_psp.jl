@@ -27,7 +27,7 @@ function load_psp(key::AbstractString)
         if startswith(identifier, datadir_psp())
             identifier = identifier[length(datadir_psp())+1:end]
         end
-    else  # Not a file or url: treat as identifier, add extension if needed
+    else  # Not a file: treat as identifier, add extension if needed
         fullpath = joinpath(datadir_psp(), lowercase(key))
         isfile(fullpath) || (fullpath = fullpath * extension)
         identifier = replace(lowercase(key), "\\" => "/")

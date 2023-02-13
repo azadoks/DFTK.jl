@@ -5,6 +5,7 @@ using Random
 using MPI
 include("testcases.jl")
 
+# TODO: refactor tests to avoid code repetition
 @testset "Forces on silicon" begin
     function energy_forces(positions)
         model = model_DFT(silicon.lattice, silicon.atoms, positions, [:lda_x, :lda_c_pw])
@@ -78,10 +79,6 @@ end
     diff_forces = dot(F1[1], disp)
     @test abs(diff_findiff - diff_forces) < 1e-7
 
-    # Test against QE v7.1 using LibXC v5.3.2 lda_x+lda_c_pw
-    # (see testcases_QuantumESPRESSO/silicon_NLCC_forces)
-    # reference = [[-5.748420297520786e-3, -4.552169062639472e-3, -3.337867407317233e-3],
-    #              [ 5.748420297520786e-3,  4.552169062639472e-3,  3.337867407317233e-3]]
     # Test against Abinit v9.6.2 using LibXC v4.3.2 lda_x+lda_c_pw
     # (see testcases_ABINIT/silicon_NLCC_forces)
     reference = [[-0.00574838157984, -0.00455216015517, -0.00333786048065],

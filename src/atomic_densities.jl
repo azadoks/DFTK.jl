@@ -39,7 +39,7 @@ end
 
 function guess_density(basis::PlaneWaveBasis,
                       system::AbstractSystem;
-                      method=method::GuessDensityMethod=AutoGuessDensity(),
+                      method=::GuessDensityMethod=AutoGuessDensity(),
                       n_electrons=basis.model.n_electrons)
     parsed = parse_system(system)
     guess_density(basis; method, n_electrons, magnetic_moments=parsed.magnetic_moments)
