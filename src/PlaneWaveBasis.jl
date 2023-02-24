@@ -25,6 +25,7 @@ struct Kpoint{T <: Real, GT <: AbstractVector{Vec3{Int}}}
     #                             # G_vectors(basis)[i] == G_vectors(basis, kpt)[mapping_inv[i]]
     G_vectors::GT                 # Wave vectors in integer coordinates (vector of Vec3{Int})
     #                             # ({G, 1/2 |k+G|^2 ≤ Ecut})
+    structure_factors::Vector{Vector{Complex{T}}}
 end
 
 @doc raw"""
@@ -75,6 +76,9 @@ struct PlaneWaveBasis{T,
     # "cubic" basis in reciprocal and real space, on which potentials and densities are stored
     G_vectors::T_G_vectors
     r_vectors::T_r_vectors
+
+    # Structure factors 
+    structure_factors::Vector{Array{Complex{T},3}}
 
     ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
@@ -141,10 +145,14 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
         end
         Gvecs_k = to_device(architecture, Gvecs_k)
 
+        Gplusk_vecs_k = map(G -> G + k, Gvecs_k)
+        structure_factors_k = build_structure_factors(Gplusk_vecs_k, model.positions)
+        structure_factors_k = to_device(architecture, structure_factors_k)
+
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint(iσ, k, mapping, mapping_inv, Gvecs_k))
+                  Kpoint(iσ, k, mapping, mapping_inv, Gvecs_k, structure_factors_k))
         end
     end
     vcat(kpoints_per_spin...)  # put all spin up first, then all spin down
@@ -152,6 +160,15 @@ end
 function build_kpoints(basis::PlaneWaveBasis, kcoords)
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut;
                   variational=basis.variational, basis.architecture)
+end
+
+function build_structure_factors(Gs::AbstractArray{Vec3{T}},
+                                 positions::AbstractVector{Vec3{S}}) where {T<:Real,S<:Real}
+    map(positions) do position
+        map(Gs) do G
+            cis2pi(-dot(G, position))
+        end
+    end
 end
 
 # Lowest-level constructor, should not be called directly.
@@ -205,6 +222,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     # Setup FFT plans
     Gs = to_device(architecture, G_vectors(fft_size))
     (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans!(similar(Gs, Complex{T}, fft_size))
+
+    structure_factors = to_device(architecture, build_structure_factors(Gs, model.positions))
 
     # Normalization constants
     # fft = fft_normalization * FFT
@@ -285,7 +304,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         fft_normalization, ifft_normalization,
-        Gs, r_vectors,
+        Gs, r_vectors, structure_factors,
         kpoints, kweights_thisproc, kgrid, kshift,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
         architecture, symmetries, symmetries_respect_rgrid, terms)
