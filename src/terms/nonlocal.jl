@@ -13,10 +13,11 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     psp_positions = [model.positions[group] for group in psp_groups]
 
     isempty(psp_groups) && return TermNoop()
-    ops = map(basis.kpoints) do kpt
-        P = build_projection_vectors_(basis, kpt, psps, psp_positions)
-        D = build_projection_coefficients_(T, psps, psp_positions)
-        NonlocalOperator(basis, kpt, P, to_device(basis.architecture, D))
+    
+    D = to_device(basis.architecture, build_projection_coefficients_(T, psps, psp_positions))
+    P = build_projection_vectors_(basis, psp_groups)
+    ops = map(zip(basis.kpoints, P)) do (kpt, P_k)
+        NonlocalOperator(basis, kpt, P_k, D)
     end
     TermAtomicNonlocal(ops)
 end
@@ -151,79 +152,73 @@ where ``\hat p_i(q) = ∫_{ℝ^3} p_i(r) e^{-iq·r} dr``.
 
 We store ``\frac{1}{\sqrt Ω} \hat p_i(k+G)`` in `proj_vectors`.
 """
-function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
-                                   psps, psp_positions) where {T}
-    unit_cell_volume = basis.model.unit_cell_volume
-    n_proj = count_n_proj(psps, psp_positions)
-    n_G    = length(G_vectors(basis, kpt))
-    proj_vectors = zeros(Complex{T}, n_G, n_proj)
-    qs = to_cpu(Gplusk_vectors(basis, kpt))
+function build_projection_vectors_(basis::PlaneWaveBasis{T}, atom_groups::Vector{Vector{Int}}) where {T}
+    itps = build_interpolators_projectors_(basis, atom_groups)  # itps[group][l][n]
+    psps = [basis.model.atoms[first(atom_group)].psp for atom_group in atom_groups]
+    psp_positions = [basis.model.positions[atom_group] for atom_group in atom_groups]
+    nproj = count_n_proj(psps, psp_positions)
+    ngroup = length(atom_groups)
+    lmax = maximum(psp.lmax for psp in psps)
+    sqrt_Vuc = sqrt(basis.model.unit_cell_volume)
 
-    # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
-    # Since the pi are translates of each others, pihat(k+G) decouples as
-    # pihat(q) = ∫ p(r-R) e^{-iqr} dr = e^{-iqR} phat(q).
-    # The first term is the structure factor, the second the form factor.
-    offset = 0  # offset into proj_vectors
-    for (psp, positions) in zip(psps, psp_positions)
-        # Compute position-independent form factors
-        qs_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-        form_factors = build_form_factors(psp, qs_cart)
+    proj_vectors = map(basis.kpoints) do kpt
+        qs_cart = Gplusk_vectors_cart(basis, kpt)
+        qnorms_cart = norm.(qs_cart)
+        proj_vectors_k = to_device(basis.architecture, zeros(Complex{T}, size(qs_cart, 1), nproj))
 
-        # Combine with structure factors
-        for r in positions
-            # k+G in this formula can also be G, this only changes an unimportant phase factor
-            structure_factors = map(q -> cis2pi(-dot(q, r)), qs)
-            @views for iproj = 1:count_n_proj(psp)
-                proj_vectors[:, offset+iproj] .= (
-                    structure_factors .* form_factors[:, iproj] ./ sqrt(unit_cell_volume)
-                )
+        angular = map(0:lmax) do l  # angular[l][m][q]
+            map(-l:l) do m
+                map(qs_cart) do q_cart      
+                    im^l * ylm_real(l, m, q_cart)
+                end
             end
-            offset += count_n_proj(psp)
         end
-    end
-    @assert offset == n_proj
 
-    # Offload potential values to a device (like a GPU)
-    to_device(basis.architecture, proj_vectors)
+        radial = map(1:ngroup) do igroup  # radial[group][l][n][q]
+            psp = psps[igroup]
+            map(0:psp.lmax) do l
+                map(1:count_n_proj_radial(psp, l)) do n
+                    map(itps[igroup][l+1][n], qnorms_cart)
+                end
+            end
+        end
+
+        iproj = 1
+        for igroup in 1:ngroup
+            psp = psps[igroup]
+            for iatom in atom_groups[igroup]
+                for l in 0:psp.lmax
+                    il = l + 1
+                    for im in 1:(2l + 1)
+                        for n in 1:count_n_proj_radial(psp, l)
+                            aff = angular[il][im]  # Form-factor angular part
+                            rff = radial[igroup][il][n]  # Form-factor radial part
+                            sf = kpt.structure_factors[iatom]  # Structure factor
+                            proj_vectors_k[:,iproj] .= sf .* aff .* rff ./ sqrt_Vuc
+                            iproj += 1
+                        end
+                    end
+                end
+            end
+        end
+        proj_vectors_k
+    end
+    return proj_vectors
 end
 
-"""
-Build form factors (Fourier transforms of projectors) for an atom centered at 0.
-"""
-function build_form_factors(psp, qs::Array)
-    T = real(eltype(eltype(qs)))
+function build_interpolators_projectors_(basis::PlaneWaveBasis,
+                                         atom_groups::Vector{Vector{Int}},
+                                         n_qnorm_interpolate::Int=3001)
+    qnorm_max = maximum(maximum(norm.(Gplusk_vectors_cart(basis, kpt))) for kpt in basis.kpoints)
+    qnorm_interpolate = range(0, qnorm_max, n_qnorm_interpolate)
 
-    # Pre-compute the radial parts of the non-local projectors at unique |q| to speed up
-    # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
-
-    # Maximum number of projectors over angular momenta so that form factors
-    # for a given `q` can be stored in an `nproj x (lmax + 1)` matrix.
-    n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
-
-    radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatability
-    for q in qs
-        q_norm = norm(q)
-        if !haskey(radials, q_norm)
-            radials_q = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
-            for l in 0:psp.lmax, iproj_l in 1:count_n_proj_radial(psp, l)
-                radials_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q_norm)
-            end
-            radials[q_norm] = radials_q
-        end
-    end
-
-    form_factors = Matrix{Complex{T}}(undef, length(qs), count_n_proj(psp))
-    for (iq, q) in enumerate(qs)
-        radials_q = radials[norm(q)]
-        count = 1
-        for l in 0:psp.lmax, m in -l:l
-            angular = im^l * ylm_real(l, m, q)
-            for iproj_l in 1:count_n_proj_radial(psp, l)
-                form_factors[iq, count] = radials_q[iproj_l, l+1] * angular
-                count += 1
+    map(atom_groups) do atom_group
+        psp = basis.model.atoms[first(atom_group)].psp
+        map(0:psp.lmax) do l
+            map(1:count_n_proj_radial(psp, l)) do iproj_l
+                f̃ = eval_psp_projector_fourier.(psp, iproj_l, l, qnorm_interpolate)
+                scale(interpolate(f̃, BSpline(Cubic(Line(OnGrid())))), qnorm_interpolate)
             end
         end
-        @assert count == count_n_proj(psp) + 1
     end
-    form_factors
 end

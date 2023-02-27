@@ -1,5 +1,5 @@
 import Interpolations
-import Interpolations: interpolate, extrapolate, scale, Spline, Cubic, OnGrid
+import Interpolations: Cubic, Line, OnGrid
 
 abstract type DensityMethod                  end
 abstract type AtomicDensity <: DensityMethod end
