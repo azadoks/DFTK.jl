@@ -1,3 +1,6 @@
+import Interpolations
+import Interpolations: interpolate, extrapolate, scale, Spline, Cubic, OnGrid
+
 abstract type DensityMethod                  end
 abstract type AtomicDensity <: DensityMethod end
 
@@ -88,8 +91,7 @@ densities.
 """
 function atomic_total_density(basis::PlaneWaveBasis{T}, method::AtomicDensity;
                               coefficients=ones(T, length(basis.model.atoms))) where {T}
-    form_factors = atomic_density_form_factors(basis, method)
-    atomic_density_superposition(basis, form_factors; coefficients)
+    atomic_density_superposition(basis, method; coefficients)
 end
 
 @doc raw"""
@@ -123,72 +125,72 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
         magmom[3] / n_elec_valence(atom)
     end
 
-    form_factors = atomic_density_form_factors(basis, method)
-    atomic_density_superposition(basis, form_factors; coefficients)    
+    atomic_density_superposition(basis, method; coefficients)    
 end
 
 @doc raw"""
 Perform an atomic density superposition. The density is constructed in reciprocal space
-using the provided atomic form-factors and coefficients and applying an inverse Fourier
-transform to yield the real-space density.
+and inverse Fourier transformed to yield the real-space density.
 """
-function atomic_density_superposition(basis::PlaneWaveBasis{T},
-                                      form_factors::IdDict{Tuple{Int,T},T};
+function atomic_density_superposition(basis::PlaneWaveBasis{T}, method::AtomicDensity;
                                       coefficients=ones(T, length(basis.model.atoms))
                                       )::Array{T,3} where {T}
     model = basis.model
-    G_cart = G_vectors_cart(basis)
+    atom_groups = model.atom_groups
+    atom_group_elements = [model.atoms[first(group)] for group in atom_groups]
+    ff_functions = map(el -> form_factor_function(basis, method, el), atom_group_elements)
 
     ρ = map(enumerate(G_vectors(basis))) do (iG, G)
-        Gnorm = norm(G_cart[iG])
-        ρ_iG = sum(enumerate(model.atom_groups); init=zero(Complex{T})) do (igroup, group)
+        qnorm_cart = norm(recip_vector_red_to_cart(basis.model, G))
+        ρ_G = sum(enumerate(atom_groups); init=zero(Complex{T})) do (igroup, group)
+            form_factor = ff_functions[igroup](qnorm_cart)
             sum(group) do iatom
-                structure_factor::Complex{T} = cis2pi(-dot(G, model.positions[iatom]))
-                coefficients[iatom]::T * form_factors[(igroup, Gnorm)]::T * structure_factor
+                structure_factor = basis.structure_factors[iatom][iG]
+                coefficients[iatom]::T * form_factor * structure_factor
             end
         end
-        ρ_iG / sqrt(model.unit_cell_volume)
+        ρ_G / sqrt(model.unit_cell_volume)
     end
-    enforce_real!(basis, ρ)  # Symmetrize Fourier coeffs to have real iFFT
+    enforce_real!(basis, ρ)
     irfft(basis, ρ)
 end
 
-function atomic_density_form_factors(basis::PlaneWaveBasis{T},
-                                     method::AtomicDensity
-                                     )::IdDict{Tuple{Int,T},T} where {T<:Real}
-    model = basis.model
-    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
-    for G in G_vectors_cart(basis)
-        Gnorm = norm(G)
-        for (igroup, group) in enumerate(model.atom_groups)
-            if !haskey(form_factors, (igroup, Gnorm))
-                element = model.atoms[first(group)]
-                form_factor = atomic_density(element, Gnorm, method)
-                form_factors[(igroup, Gnorm)] = form_factor
-            end
-        end
+function form_factor_function(::PlaneWaveBasis{T}, ::ValenceGaussianDensity,
+                              el::Element) where {T}
+    qnorm -> gaussian_valence_charge_density_fourier(el, qnorm)
+end
+
+function form_factor_function(basis::PlaneWaveBasis{T}, ::ValenceNumericalDensity,
+                              el::ElementPsp; n_qnorm_interpolate::Int=3001) where {T}
+    qnorm_max = maximum(norm.(G_vectors_cart(basis)))
+    qnorm_interpolate = range(0, qnorm_max, n_qnorm_interpolate)
+    f̃ = eval_psp_density_valence_fourier.(el.psp, qnorm_interpolate)
+    scale(interpolate(f̃, BSpline(Cubic(Line(OnGrid())))), qnorm_interpolate)
+end
+
+function form_factor_function(basis::PlaneWaveBasis{T}, ::ValenceAutoDensity,
+                              el::Element) where {T}
+    return form_factor_function(basis, ValenceGaussianDensity(), el)
+end
+
+function form_factor_function(basis::PlaneWaveBasis{T}, ::ValenceAutoDensity,
+                              el::ElementPsp) where {T}
+    if has_density_valence(el.psp)
+        return form_factor_function(basis, ValenceNumericalDensity(), el)
     end
-    form_factors
+    return form_factor_function(basis, ValenceGaussianDensity(), el)
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceGaussianDensity)::T where {T <: Real}
-    gaussian_valence_charge_density_fourier(element, Gnorm)
-end
-
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceNumericalDensity)::T where {T <: Real}
-    eval_psp_density_valence_fourier(element.psp, Gnorm)
-end
-
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceAutoDensity)::T where {T <: Real}
-    valence_charge_density_fourier(element, Gnorm)
-end
-
-function atomic_density(element::Element, Gnorm::T,
-                        ::CoreDensity)::T where {T <: Real}
-    has_density_core(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
+function form_factor_function(basis::PlaneWaveBasis{T}, ::CoreDensity, el::Element;
+                              n_qnorm_interpolate::Int=3001) where {T}
+    if has_density_core(el)
+        qnorm_max = maximum(norm.(G_vectors_cart(basis)))
+        qnorm_interpolate = range(0, qnorm_max, n_qnorm_interpolate)
+        f̃ = eval_psp_density_core_fourier.(el.psp, qnorm_interpolate)
+        return scale(interpolate(f̃, BSpline(Cubic(Line(OnGrid())))), qnorm_interpolate)
+    else
+        return qnorm -> zero(qnorm)
+    end
 end
 
 @doc raw"""
