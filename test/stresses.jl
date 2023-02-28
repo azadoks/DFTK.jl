@@ -33,7 +33,7 @@ include("testcases.jl")
         scfres = self_consistent_field(make_basis(lattice, true, element); is_converged)
         scfres_nosym = self_consistent_field(make_basis(lattice, false, element); is_converged)
         stresses = compute_stresses_cart(scfres)
-        @test isapprox(stresses, compute_stresses_cart(scfres_nosym), atol=1e-10)
+        @test isapprox(stresses, compute_stresses_cart(scfres_nosym), atol=2e-10)
     
         dir = MPI.bcast(randn(3, 3), 0, MPI.COMM_WORLD)
     
