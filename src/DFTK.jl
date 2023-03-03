@@ -18,6 +18,8 @@ using GPUArraysCore
 using Random
 using ChainRulesCore
 using SnoopPrecompile
+using PseudoPotentialIO
+using LazyArtifacts
 
 export Vec3
 export Mat3
@@ -39,18 +41,18 @@ include("architecture.jl")
 include("common/zeros_like.jl")
 include("common/norm.jl")
 
-export PspHgh
-export PspUpf
-include("pseudo/NormConservingPsp.jl")
-include("pseudo/PspHgh.jl")
-include("pseudo/PspUpf.jl")
+# export PspHgh
+# export PspUpf
+# include("pseudo/NormConservingPsp.jl")
+# include("pseudo/PspHgh.jl")
+# include("pseudo/PspUpf.jl")
 
 export ElementPsp
 export ElementCohenBergstresser
 export ElementCoulomb
 export ElementGaussian
-export charge_nuclear
-export charge_ionic
+export atomic_charge
+export valence_charge
 export atomic_symbol
 export n_elec_valence
 export n_elec_core
@@ -179,11 +181,11 @@ export atomic_spin_density
 export atomic_density_superposition
 include("density_methods.jl")
 
-export load_psp
-export list_psp
+# export load_psp
+# export list_psp
 export attach_psp
-include("pseudo/load_psp.jl")
-include("pseudo/list_psp.jl")
+# include("pseudo/load_psp.jl")
+# include("pseudo/list_psp.jl")
 include("pseudo/attach_psp.jl")
 
 export DFTKPotential
@@ -254,7 +256,7 @@ if VERSION ≥ v"1.9alpha" && isnothing(get(ENV, "DFTK_NO_PRECOMPILATION", nothi
         lattice = a / 2 * [[0 1 1.];
                            [1 0 1.];
                            [1 1 0.]]
-        Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+        Si = ElementPsp(:Si, psp=load_psp(artifact"hgh_lda_hgh", "si-q4.hgh"))
         atoms     = [Si, Si]
         positions = [ones(3)/8, -ones(3)/8]
 

@@ -1,3 +1,6 @@
+using PseudoPotentialIO
+
+
 ## Local potentials. Can be provided from external potentials, or from `model.atoms`.
 
 # A local potential term. Must have the field `potential_values`, storing the
@@ -74,7 +77,8 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
     model = basis.model
-    G_cart = to_cpu(G_vectors_cart(basis))
+    Gs_cart = to_cpu(G_vectors_cart(basis))
+    Gnorms_cart = norm.(Gs_cart)
     # TODO Bring G_cart on the CPU for compatibility with the pseudopotentials which
     #      are not isbits ... might be able to solve this by restructuring the loop
 
@@ -83,22 +87,22 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # the potential Fourier transform (by a lot). Using a hash map gives O(1)
     # lookup.
     form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
-    for G in G_cart
-        q = norm(G)
-        for (igroup, group) in enumerate(model.atom_groups)
-            if !haskey(form_factors, (igroup, q))
-                element = model.atoms[first(group)]
-                form_factors[(igroup, q)] = local_potential_fourier(element, q)
+    for (igroup, group) in enumerate(model.atom_groups)
+        element = model.atoms[first(group)]
+        Ṽloc = local_potential_fourier(element)
+        for Gnorm in Gnorms_cart
+            if !haskey(form_factors, (igroup, Gnorm))
+                form_factors[(igroup, Gnorm)] = Ṽloc(Gnorm)
             end
         end
     end
 
     Gs = to_cpu(G_vectors(basis))  # TODO Again for GPU compatibility
     pot_fourier = map(enumerate(Gs)) do (iG, G)
-        q = norm(G_cart[iG])
+        Gnorm_cart = norm(Gs_cart[iG])
         pot = sum(enumerate(model.atom_groups)) do (igroup, group)
             structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
-            form_factors[(igroup, q)] * structure_factor
+            form_factors[(igroup, Gnorm_cart)] * structure_factor
         end
         pot / sqrt(model.unit_cell_volume)
     end
@@ -121,8 +125,8 @@ end
     forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
     for group in model.atom_groups
         element = model.atoms[first(group)]
-        form_factors = [Complex{T}(local_potential_fourier(element, norm(G)))
-                        for G in G_vectors_cart(basis)]
+        Ṽloc = local_potential_fourier(element)
+        form_factors = [Complex{T}(Ṽloc(norm(G))) for G in G_vectors_cart(basis)]
         for idx in group
             r = model.positions[idx]
             forces[idx] = _force_local_internal(basis, ρ_fourier, form_factors, r)

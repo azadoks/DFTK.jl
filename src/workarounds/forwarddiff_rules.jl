@@ -162,16 +162,15 @@ end
 
 construct_value(el::Element) = el
 construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, construct_value(el.psp))
-construct_value(psp::PspHgh) = psp
-function construct_value(psp::PspHgh{T}) where {T <: ForwardDiff.Dual}
-    PspHgh(psp.Zion,
+construct_value(psp::HghPsP) = psp
+function construct_value(psp::HghPsP{T}) where {T <: ForwardDiff.Dual}
+    HghPsP(psp.Zatom,
+           psp.Zion,
            ForwardDiff.value(psp.rloc),
            ForwardDiff.value.(psp.cloc),
            psp.lmax,
-           ForwardDiff.value.(psp.rp),
-           [ForwardDiff.value.(hl) for hl in psp.h],
-           psp.identifier,
-           psp.description)
+           ForwardDiff.value.(psp.rnl),
+           [ForwardDiff.value.(hl) for hl in psp.D])
 end
 
 

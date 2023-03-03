@@ -1,3 +1,5 @@
+using PseudoPotentialIO
+
 abstract type DensityMethod                  end
 abstract type AtomicDensity <: DensityMethod end
 
@@ -158,37 +160,33 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
                                      )::IdDict{Tuple{Int,T},T} where {T<:Real}
     model = basis.model
     form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
-    for G in G_vectors_cart(basis)
-        Gnorm = norm(G)
-        for (igroup, group) in enumerate(model.atom_groups)
+    Gnorms_cart = norm.(G_vectors_cart(basis))
+    for (igroup, group) in enumerate(model.atom_groups)
+        element = model.atoms[first(group)]
+        form_factor_function = atomic_density(element, method)
+        for Gnorm in Gnorms_cart
             if !haskey(form_factors, (igroup, Gnorm))
-                element = model.atoms[first(group)]
-                form_factor = atomic_density(element, Gnorm, method)
-                form_factors[(igroup, Gnorm)] = form_factor
+                form_factors[(igroup, Gnorm)] = form_factor_function(Gnorm)
             end
         end
     end
     form_factors
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceGaussianDensity)::T where {T <: Real}
-    gaussian_valence_charge_density_fourier(element, Gnorm)
+function atomic_density(el::Element, ::ValenceGaussianDensity)
+    gaussian_valence_charge_density_fourier(el)
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceNumericalDensity)::T where {T <: Real}
-    eval_psp_density_valence_fourier(element.psp, Gnorm)
+function atomic_density(el::ElementPsp, ::ValenceNumericalDensity)
+    valence_charge_density_fourier(el.psp)
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceAutoDensity)::T where {T <: Real}
-    valence_charge_density_fourier(element, Gnorm)
+function atomic_density(el::Element, ::ValenceAutoDensity)
+    valence_charge_density_fourier(el)
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::CoreDensity)::T where {T <: Real}
-    has_density_core(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
+function atomic_density(el::Element, ::CoreDensity)
+    core_charge_density_fourier(el)
 end
 
 @doc raw"""

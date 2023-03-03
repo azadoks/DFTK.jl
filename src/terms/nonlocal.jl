@@ -1,3 +1,5 @@
+using PseudoPotentialIO
+
 @doc raw"""
 Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander form.
 ``\text{Energy} = \sum_a \sum_{ij} \sum_{n} f_n <ψ_n|p_{ai}> D_{ij} <p_{aj}|ψ_n>.``
@@ -96,12 +98,15 @@ function build_projection_coefficients_(T, psps, psp_positions)
     # TODO In the current version the proj_coeffs still has a lot of zeros.
     #      One could improve this by storing the blocks as a list or in a
     #      BlockDiagonal data structure
-    n_proj = count_n_proj(psps, psp_positions)
+    n_proj = sum([
+        length(positions) * n_projector_angulars(psp)
+        for (psp, positions) in zip(psps, psp_positions)
+    ])
     proj_coeffs = zeros(T, n_proj, n_proj)
 
     count = 0
     for (psp, positions) in zip(psps, psp_positions), _ in positions
-        n_proj_psp = count_n_proj(psp)
+        n_proj_psp = n_projector_angulars(psp)
         block = count+1:count+n_proj_psp
         proj_coeffs[block, block] = build_projection_coefficients_(T, psp)
         count += n_proj_psp
@@ -115,14 +120,14 @@ end
 # The ordering of the projector indices is (l,m,i), where l, m are the
 # AM quantum numbers and i is running over all projectors for a given l.
 # The matrix is block-diagonal with non-zeros only if l and m agree.
-function build_projection_coefficients_(T, psp::NormConservingPsp)
-    n_proj = count_n_proj(psp)
+function build_projection_coefficients_(T, psp)
+    n_proj = n_projector_angulars(psp)
     proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0
-    for l in 0:psp.lmax, m in -l:l
-        n_proj_l = count_n_proj_radial(psp, l)  # Number of i's
+    for l in 0:max_angular_momentum(psp), m in -l:l
+        n_proj_l = n_projector_radials(psp, l)  # Number of i's
         range = count .+ (1:n_proj_l)
-        proj_coeffs[range, range] = psp.h[l + 1]
+        proj_coeffs[range, range] = projector_coupling(psp, l)
         count += n_proj_l
     end # l, m
     proj_coeffs
@@ -154,7 +159,10 @@ We store ``\frac{1}{\sqrt Ω} \hat p_i(k+G)`` in `proj_vectors`.
 function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
                                    psps, psp_positions) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
-    n_proj = count_n_proj(psps, psp_positions)
+    n_proj = sum([
+        length(positions) * n_projector_angulars(psp)
+        for (psp, positions) in zip(psps, psp_positions)
+    ])
     n_G    = length(G_vectors(basis, kpt))
     proj_vectors = zeros(Complex{T}, n_G, n_proj)
     qs = to_cpu(Gplusk_vectors(basis, kpt))
@@ -173,12 +181,12 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
         for r in positions
             # k+G in this formula can also be G, this only changes an unimportant phase factor
             structure_factors = map(q -> cis2pi(-dot(q, r)), qs)
-            @views for iproj = 1:count_n_proj(psp)
+            @views for iproj = 1:n_projector_angulars(psp)
                 proj_vectors[:, offset+iproj] .= (
                     structure_factors .* form_factors[:, iproj] ./ sqrt(unit_cell_volume)
                 )
             end
-            offset += count_n_proj(psp)
+            offset += n_projector_angulars(psp)
         end
     end
     @assert offset == n_proj
@@ -198,32 +206,38 @@ function build_form_factors(psp, qs::Array)
 
     # Maximum number of projectors over angular momenta so that form factors
     # for a given `q` can be stored in an `nproj x (lmax + 1)` matrix.
-    n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
+    n_proj_max = maximum(l -> n_projector_radials(psp, l), 0:max_angular_momentum(psp); init=0)
+
+    β̃ = map(0:max_angular_momentum(psp)) do l
+        map(1:n_projector_radials(psp, l)) do iproj_l
+            projector_fourier(psp, l, iproj_l)
+        end
+    end
 
     radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatability
     for q in qs
         q_norm = norm(q)
         if !haskey(radials, q_norm)
-            radials_q = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
-            for l in 0:psp.lmax, iproj_l in 1:count_n_proj_radial(psp, l)
-                radials_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q_norm)
+            radials_q = Matrix{T}(undef, n_proj_max, max_angular_momentum(psp) + 1)
+            for l in 0:max_angular_momentum(psp), iproj_l in 1:n_projector_radials(psp, l)
+                radials_q[iproj_l, l+1] = β̃[l+1][iproj_l](q_norm)
             end
             radials[q_norm] = radials_q
         end
     end
 
-    form_factors = Matrix{Complex{T}}(undef, length(qs), count_n_proj(psp))
+    form_factors = Matrix{Complex{T}}(undef, length(qs), n_projector_angulars(psp))
     for (iq, q) in enumerate(qs)
         radials_q = radials[norm(q)]
         count = 1
-        for l in 0:psp.lmax, m in -l:l
+        for l in 0:max_angular_momentum(psp), m in -l:l
             angular = im^l * ylm_real(l, m, q)
-            for iproj_l in 1:count_n_proj_radial(psp, l)
+            for iproj_l in 1:n_projector_radials(psp, l)
                 form_factors[iq, count] = radials_q[iproj_l, l+1] * angular
                 count += 1
             end
         end
-        @assert count == count_n_proj(psp) + 1
+        @assert count == n_projector_angulars(psp) + 1
     end
     form_factors
 end

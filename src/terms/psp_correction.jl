@@ -1,3 +1,5 @@
+using PseudoPotentialIO
+
 """
 Pseudopotential correction energy. TODO discuss the need for this.
 """
@@ -29,7 +31,7 @@ function energy_psp_correction(lattice::AbstractMatrix{T}, atoms, atom_groups) w
 
     n_electrons::Int = sum(n_elec_valence, atoms)
     correction_per_cell = sum(
-        length(group) * eval_psp_energy_correction(T, atoms[first(group)].psp, n_electrons)
+        length(group) * n_electrons * pseudo_energy_correction(T, atoms[first(group)].psp)
         for group in psp_groups
     )
 

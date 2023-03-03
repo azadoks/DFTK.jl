@@ -1,3 +1,5 @@
+using PseudoPotentialIO
+
 """
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
 """
@@ -170,16 +172,15 @@ end
     end
 
     model = basis.model
-    form_factors = atomic_density_form_factors(basis, CoreDensity())
     nlcc_groups = [(igroup, group) for (igroup, group) in enumerate(basis.model.atom_groups)
-                   if has_density_core(model.atoms[first(group)])]
+                   if has_nlcc(model.atoms[first(group)])]
     @assert !isnothing(nlcc_groups)
 
     forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
     for (igroup, group) in nlcc_groups
         for iatom in group
             r = model.positions[iatom]
-            forces[iatom] = _force_xc_internal(basis, Vxc_fourier, form_factors, igroup, r)
+            forces[iatom] = _force_xc_internal(basis, Vxc_fourier, igroup, r)
         end
     end
     forces
@@ -188,9 +189,10 @@ end
 function _force_xc_internal(basis, Vxc_fourier, form_factors, igroup, r)
     T = real(eltype(basis))
     f = zero(Vec3{T})
+    ρ̃core = core_charge_density_fourier(basis.atoms[first(group)].psp)
     for (iG, (G, G_cart)) in enumerate(zip(G_vectors(basis), G_vectors_cart(basis)))
         f -= real(conj(Vxc_fourier[iG])
-                  .* form_factors[(igroup, norm(G_cart))]
+                  .* ρ̃core(norm(G_cart))
                   .* cis2pi(-dot(G, r))
                   .* (-2T(π)) .* G .* im
                   ./ sqrt(basis.model.unit_cell_volume))
