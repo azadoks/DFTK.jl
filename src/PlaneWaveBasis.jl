@@ -111,6 +111,10 @@ struct PlaneWaveBasis{T,
     # Therefore, all quantities should be symmetric to machine precision
     symmetries_respect_rgrid::Bool
 
+    ## Instantiatiated Fourier-transformed atoms (<: Element)
+    # Each atom corresponds to an atom group in the model.
+    fourier_atoms::Vector{Any}
+
     ## Instantiated terms (<: Term). See Hamiltonian for high-level usage
     terms::Vector{Any}
 end
@@ -279,6 +283,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
                  for i = 1:N1, j = 1:N2, k = 1:N3]
     r_vectors = to_device(architecture, r_vectors)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
+    fourier_atoms = Vector{Any}[undef, length(model.atoms_groups)]  # Dummy atoms array, filled below
 
     basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(Gs), typeof(r_vectors),
                            typeof(kpoints[1].G_vectors)}(
@@ -289,7 +294,14 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         Gs, r_vectors,
         kpoints, kweights_thisproc, kgrid, kshift,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
-        architecture, symmetries, symmetries_respect_rgrid, terms)
+        architecture, symmetries, symmetries_respect_rgrid, fourier_atoms, terms)
+    # Instantiate the Fourier atoms with the basis, must be done _before_ the terms are
+    # instantiated because some terms rely on the Fourier-transformed atoms
+    # (e.g. local potential)
+    for (ig, g) in enumerate(model.atom_groups)
+        atom = model.atoms[first(g)]
+        @timing "Instantiation $(atom.symbol)" basis.atoms[ig] = hankel_transform(atom, basis)
+    end
     # Instantiate the terms with the basis
     for (it, t) in enumerate(model.term_types)
         term_name = string(nameof(typeof(t)))
