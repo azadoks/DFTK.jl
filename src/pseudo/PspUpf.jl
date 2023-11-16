@@ -1,6 +1,7 @@
 using LinearAlgebra
 using Interpolations: linear_interpolation
 using PseudoPotentialIO: load_upf
+using Hankel
 
 struct PspUpf{T,I} <: NormConservingPsp
     ## From file
@@ -32,14 +33,16 @@ struct PspUpf{T,I} <: NormConservingPsp
     # UPF: `PP_NLCC`
     r2_ρcore::Vector{T}
 
-    ## Precomputed for performance
-    # (USED IN TESTS) Local potential interpolator, stored for performance.
+    ## Fourier interpolators (used for form factors)
+    vloc_q_interp::I
+    projs_q_interp::Vector{Vector{I}}
+    ρion_q_interp::I
+    ρcore_q_interp::I
+
+    ## Real-space interpolators (used for tests)
     vloc_interp::I
-    # (USED IN TESTS) Projector interpolators, stored for performance.
     r2_projs_interp::Vector{Vector{I}}
-    # (USED IN TESTS) Valence charge density interpolator, stored for performance.
     r2_ρion_interp::I
-    # (USED IN TESTS) Core charge density interpolator, stored for performance.
     r2_ρcore_interp::I
 
     ## Extras
@@ -137,20 +140,61 @@ function PspUpf(path; identifier=path, rcut=nothing)
         r2_ρcore = zeros(Float64, length(rgrid))
     end
 
-    vloc_interp = linear_interpolation((rgrid,), vloc)
+    vloc_interp = linear_interpolation((rgrid,), vloc; extrapolation_bc=0)
     r2_projs_interp = map(r2_projs) do r2_projs_l
         map(r2_projs_l) do r2_proj
             ir_cut = lastindex(r2_proj)
-            linear_interpolation((rgrid[1:ir_cut],), r2_proj)
+            linear_interpolation((rgrid[1:ir_cut],), r2_proj; extrapolation_bc=0)
         end
     end
-    r2_ρion_interp = linear_interpolation((rgrid,), r2_ρion)
-    r2_ρcore_interp = linear_interpolation((rgrid,), r2_ρcore)
+    r2_ρion_interp = linear_interpolation((rgrid,), r2_ρion; extrapolation_bc=0)
+    r2_ρcore_interp = linear_interpolation((rgrid,), r2_ρcore; extrapolation_bc=0)
 
-    PspUpf{eltype(rgrid),typeof(vloc_interp)}(Zion, lmax, rgrid, drgrid, vloc,
-        r2_projs, h, r2_pswfcs, pswfc_occs, r2_ρion, r2_ρcore, vloc_interp,
-        r2_projs_interp, r2_ρion_interp, r2_ρcore_interp, rcut, ircut,
-        identifier, description
+    qdht_local = QDHT{0,2}(rcut, ircut)
+    vloc_q_interp = let
+        vloc_r = vloc_interp.(qdht_local.r)
+        coulomb_r = -Zion ./ qdht_local.r  # .* erf.(qdht_local.r)
+        coulomb_q = -Zion ./ qdht_local.k .^ 2  # .* exp.(-qdht_local.k ./ 4)
+        vloc_q = 4π .* (
+            sqrt(π/2) .* (qdht_local * (vloc_r .- coulomb_r))
+            .+ coulomb_q
+        )
+        linear_interpolation((qdht_local.k,), vloc_q; extrapolation_bc=0)
+    end
+
+    ρion_q_interp = let
+        ρion_q = 4π .* sqrt(π/2) .* (
+            qdht_local * (r2_ρion_interp.(qdht_local.r) ./ (qdht_local.r .^ 2))
+        )
+        linear_interpolation((qdht_local.k,), ρion_q; extrapolation_bc=0)
+    end
+
+    ρcore_q_interp = let
+        ρcore_q = 4π .* sqrt(π/2) .* (
+            qdht_local * (r2_ρcore_interp.(qdht_local.r) ./ (qdht_local.r .^ 2))
+        )
+        linear_interpolation((qdht_local.k,), ρcore_q; extrapolation_bc=0)
+    end
+
+    projs_q_interp = map(0:lmax) do l
+        n_projs_l = length(r2_projs[l+1])
+        map(1:n_projs_l) do i
+            N = min(ircut, length(r2_projs[l+1][i]))
+            R = rgrid[N]
+            qdht = QDHT{l,2}(R, N)
+            proj_q = 4π .* sqrt(π/2) .* (
+                qdht * (r2_projs_interp[l+1][i].(qdht.r) ./ (qdht.r .^ 2))
+            )
+            linear_interpolation((qdht.k,), proj_q; extrapolation_bc=0)
+        end
+    end
+
+    PspUpf{eltype(rgrid),typeof(vloc_interp)}(
+        Zion, lmax, rgrid, drgrid,
+        vloc, r2_projs, h, r2_pswfcs, pswfc_occs, r2_ρion, r2_ρcore,
+        vloc_q_interp, projs_q_interp, ρion_q_interp, ρcore_q_interp,
+        vloc_interp, r2_projs_interp, r2_ρion_interp, r2_ρcore_interp,
+        rcut, ircut, identifier, description
     )
 end
 
