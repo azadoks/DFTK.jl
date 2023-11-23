@@ -101,11 +101,12 @@ function PspUpf(path; identifier=path, rcut=nothing)
     # matter. However, HGH pseudos in UPF format use the first units, so we assume them
     # to facilitate comparison of the intermediate quantities with analytical HGH.
 
+    ir_cut_projs_max = maximum(beta -> beta["cutoff_radius_index"], pseudo["beta_projectors"])
     r2_projs = map(0:lmax) do l
         betas_l = filter(beta -> beta["angular_momentum"] == l, pseudo["beta_projectors"])
         map(betas_l) do beta_li
             r_beta_ha = beta_li["radial_function"] ./ 2  # Ry -> Ha
-            rgrid[1:length(r_beta_ha)] .* r_beta_ha  # rβ -> r²β
+            rgrid[1:ir_cut_projs_max] .* r_beta_ha[1:ir_cut_projs_max]  # rβ -> r²β
         end
     end
 
@@ -198,7 +199,7 @@ function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T<:Real}
         rgrid .* (rgrid .* vloc .- -psp.Zion * erf.(rgrid))
         .* sphericalbesselj_fast.(0, q .* rgrid)
     )
-    I = trapezoidal(rgrid, f)
+    I = simpson(rgrid, f)
     4T(π) * (I + -psp.Zion / q^2 * exp(-q^2 / T(4)))
 end
 
@@ -226,5 +227,5 @@ function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     rgrid = @view psp.rgrid[1:psp.ircut]
     vloc = @view psp.vloc[1:psp.ircut]
     f = rgrid .* (rgrid .* vloc .- -psp.Zion)
-    4T(π) * n_electrons * trapezoidal(rgrid, f)
+    4T(π) * n_electrons * simpson(rgrid, f)
 end

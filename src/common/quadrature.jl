@@ -9,10 +9,23 @@ using LoopVectorization
 Integrate y(x) over x using trapezoidal method quadrature.
 """
 trapezoidal
-@inbounds function trapezoidal(x::AbstractVector, y::AbstractVector)
+function trapezoidal(x::AbstractVector, y::AbstractVector)
     n = length(x)
     n == length(y) || error("vectors `x` and `y` must have the same number of elements")
     n == 1 && return zero(promote_type(eltype(x), eltype(y)))
+    (x[2] - x[1]) ≈ (x[3] - x[2]) && return _trapezoidal_uniform(x, y)
+    return _trapezoidal_nonuniform(x, y)
+end
+
+@inbounds function _trapezoidal_uniform(x::AbstractVector, y::AbstractVector)
+    dx = x[2] - x[1]
+    n = length(x)
+    I = dx / 2 * (y[1] + 2sum(y[2:n-1]) + y[n])
+    return I
+end
+
+@inbounds function _trapezoidal_nonuniform(x::AbstractVector, y::AbstractVector)
+    n = length(x)
     I = (x[2] - x[1]) * y[1]
     @turbo for i in 2:(n-1)
         # dx[i] + dx[i - 1] = (x[i + 1] - x[i]) + (x[i] - x[i - 1])
@@ -20,7 +33,7 @@ trapezoidal
         I += (x[i + 1] - x[i - 1]) * y[i]
     end
     I += (x[n] - x[n - 1]) * y[n]
-    I / 2
+    return I / 2
 end
 
 """
@@ -88,4 +101,29 @@ end
     end
 
     return I
+end
+
+"""
+    qe_simpson(dx, y)
+
+Integrate y(x) over x using QE's Simpson's method.
+
+Note: assumes an odd number of points!
+"""
+qe_simpson
+@inbounds function qe_simpson(dx::AbstractVector, y::AbstractVector)
+    n = length(dx)
+
+    I = dx[1] * y[1]
+    for i in 2:(n - 1)
+        fct = abs(mod(i, 2) - 2) * 2
+        I += fct * dx[i] * y[i]
+    end
+    if mod(n, 2) == 1
+        I += dx[n] * y[n]
+    else
+        I -= dx[n - 1] * y[n - 1]
+    end
+
+    return I / 3
 end

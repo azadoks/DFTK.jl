@@ -5,7 +5,7 @@ Compute the Hankel transform
 ```math
     H[f] = 4\pi \int_0^\infty r f(r) j_l(qr) r dr.
 ```
-The integration is performed by trapezoidal quadrature, and the function takes
+The integration is performed by Simpson's method quadrature, and the function takes
 as input the radial grid `r`, the precomputed quantity r²f(r) `r2_f`, angular
 momentum / spherical bessel order `l`, and the Hankel coordinate `q`.
 """
